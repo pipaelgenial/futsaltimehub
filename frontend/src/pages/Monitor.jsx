@@ -284,6 +284,8 @@ function LiveMatch({ team, match, onEnd }) {
   const navigate = useNavigate();
   const [players, setPlayers] = useState(match.players);
   const [subs, setSubs] = useState(match.subs);
+  const [goals, setGoals] = useState(match.goals || []);
+  const [pendingGoalType, setPendingGoalType] = useState(null); // 'home' opens scorer picker
   const [half, setHalf] = useState(match.half);
   const [elapsedHalf, setElapsedHalf] = useState(match.elapsedHalf);
   const [running, setRunning] = useState(false);
@@ -292,10 +294,13 @@ function LiveMatch({ team, match, onEnd }) {
   const [selectedIn, setSelectedIn] = useState(null);
   const tickRef = useRef(null);
 
+  const homeScore = goals.filter((g) => g.type === 'home').length;
+  const awayScore = goals.filter((g) => g.type === 'away').length;
+
   // Persist on state change
   useEffect(() => {
-    setActiveMatch({ ...match, players, subs, half, elapsedHalf, ended });
-  }, [players, subs, half, elapsedHalf, ended]); // eslint-disable-line
+    setActiveMatch({ ...match, players, subs, goals, half, elapsedHalf, ended });
+  }, [players, subs, goals, half, elapsedHalf, ended]); // eslint-disable-line
 
   // Tick
   useEffect(() => {
@@ -376,6 +381,24 @@ function LiveMatch({ team, match, onEnd }) {
     if (!ended) {
       if (!window.confirm('O jogo não terminou. Gravar mesmo assim?')) return;
     }
+    // Compute +/- per player from goals
+    const playerStats = players.map((p) => {
+      let gf = 0; // golos a favor com este jogador em campo
+      let gc = 0; // golos sofridos com este jogador em campo
+      goals.forEach((g) => {
+        if (g.playersOnCourt && g.playersOnCourt.includes(p.id)) {
+          if (g.type === 'home') gf += 1;
+          else gc += 1;
+        }
+      });
+      return {
+        id: p.id, number: p.number, name: p.name, position: p.position,
+        totalTime: p.totalTime, stintsCount: p.stintsCount,
+        goalsFor: gf, goalsAgainst: gc, plusMinus: gf - gc,
+        scored: goals.filter((g) => g.scorerId === p.id).length,
+      };
+    });
+
     saveMatch({
       id: match.id,
       opponent: match.opponent,
@@ -383,10 +406,11 @@ function LiveMatch({ team, match, onEnd }) {
       matchday: match.matchday,
       venue: match.venue,
       date: match.date,
-      players: players.map(({ id, number, name, position, totalTime, stintsCount }) => ({
-        id, number, name, position, totalTime, stintsCount,
-      })),
+      players: playerStats,
       subs,
+      goals,
+      homeScore,
+      awayScore,
       totalDuration: totalMatchTime,
       halfReached: half,
       teamName: team.name,
@@ -394,6 +418,36 @@ function LiveMatch({ team, match, onEnd }) {
     clearActiveMatch();
     toast.success('JOGO GRAVADO', { description: 'A redirecionar para estatísticas...' });
     setTimeout(() => navigate('/estatisticas'), 800);
+  };
+
+  const recordGoal = (type, scorer = null) => {
+    const courtIds = players.filter((p) => p.onCourt).map((p) => p.id);
+    const goal = {
+      id: Date.now() + Math.random(),
+      type, // 'home' | 'away'
+      minute: elapsedHalf,
+      half,
+      scorerId: scorer ? scorer.id : null,
+      scorerName: scorer ? scorer.name : null,
+      scorerNumber: scorer ? scorer.number : null,
+      playersOnCourt: courtIds,
+    };
+    setGoals((gs) => [goal, ...gs]);
+    setPendingGoalType(null);
+    if (type === 'home') {
+      toast.success('GOLO ' + team.name, {
+        description: scorer ? `${scorer.number} ${scorer.name.toUpperCase()}` : 'Sem marcador',
+      });
+    } else {
+      toast.message('GOLO ADVERSÁRIO', { description: match.opponent });
+    }
+  };
+
+  const undoLastGoal = () => {
+    if (goals.length === 0) return;
+    if (!window.confirm('Anular o último golo registado?')) return;
+    setGoals((gs) => gs.slice(1));
+    toast.message('GOLO ANULADO');
   };
 
   const performSubstitution = (outId, inId) => {
@@ -479,6 +533,56 @@ function LiveMatch({ team, match, onEnd }) {
       </header>
 
       <main className="flex-1 px-5 lg:px-8 py-6 max-w-[1500px] mx-auto w-full">
+        {/* Scoreboard */}
+        <section className="mb-4 border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-5 lg:p-6">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 lg:gap-6">
+            {/* Home */}
+            <div className="text-right">
+              <div className="text-[10px] tracking-label uppercase text-neon mb-1">Casa</div>
+              <div className="font-display text-xl lg:text-2xl uppercase truncate">{team.name}</div>
+              <button
+                onClick={() => !ended && setPendingGoalType('home')}
+                disabled={ended || onCourtPlayers.length === 0}
+                className="mt-2 inline-flex items-center gap-2 bg-neon text-black font-display text-sm uppercase tracking-wider px-4 py-2 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus size={14} /> Golo
+              </button>
+            </div>
+
+            {/* Score */}
+            <div className="text-center">
+              <div className="text-[10px] tracking-label uppercase text-white/50 mb-1">Resultado</div>
+              <div className="font-display text-6xl lg:text-7xl tabular-nums leading-none flex items-center gap-3 lg:gap-5">
+                <span className={homeScore > awayScore ? 'text-neon' : 'text-white'}>{homeScore}</span>
+                <span className="text-white/30 text-4xl lg:text-5xl">·</span>
+                <span className={awayScore > homeScore ? 'text-red-400' : 'text-white'}>{awayScore}</span>
+              </div>
+              {goals.length > 0 && !ended && (
+                <button
+                  onClick={undoLastGoal}
+                  className="mt-2 text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors"
+                  title="Anular último golo"
+                >
+                  ↶ Anular Último
+                </button>
+              )}
+            </div>
+
+            {/* Away */}
+            <div>
+              <div className="text-[10px] tracking-label uppercase text-red-400 mb-1">Fora</div>
+              <div className="font-display text-xl lg:text-2xl uppercase truncate">{match.opponent}</div>
+              <button
+                onClick={() => !ended && recordGoal('away')}
+                disabled={ended}
+                className="mt-2 inline-flex items-center gap-2 bg-red-500/15 border border-red-500/40 text-red-300 font-display text-sm uppercase tracking-wider px-4 py-2 rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus size={14} /> Golo Adversário
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* Control panel */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4 mb-6">
           {/* Big clock - COUNTDOWN */}
@@ -644,6 +748,60 @@ function LiveMatch({ team, match, onEnd }) {
           </div>
         </section>
 
+        {/* Goals log */}
+        <section className="mt-8">
+          <SectionHeader title="Marcador · Golos" count={goals.length} icon={Trophy} />
+          {goals.length === 0 ? (
+            <div className="border border-dashed border-white/10 rounded-sm p-8 text-center text-sm text-white/40">
+              Sem golos registados. Usa os botões «Golo» no marcador acima.
+            </div>
+          ) : (
+            <div className="border border-white/10 rounded-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-[#0f0f0f] text-[10px] tracking-label uppercase text-white/50">
+                  <tr>
+                    <th className="text-left px-4 py-3 w-16">#</th>
+                    <th className="text-left px-4 py-3 w-24">Parte</th>
+                    <th className="text-left px-4 py-3 w-28">Minuto</th>
+                    <th className="text-left px-4 py-3 w-32">Equipa</th>
+                    <th className="text-left px-4 py-3">Marcador</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {goals.map((g, i) => (
+                    <tr key={g.id} className="border-t border-white/5 bg-[#0a0a0a] hover:bg-[#111]">
+                      <td className="px-4 py-3 font-mono text-neon">#{goals.length - i}</td>
+                      <td className="px-4 py-3 text-white/70">{g.half}.ª</td>
+                      <td className="px-4 py-3 font-mono">{formatTime(g.minute)}</td>
+                      <td className="px-4 py-3">
+                        {g.type === 'home' ? (
+                          <span className="text-neon font-semibold uppercase">{team.name}</span>
+                        ) : (
+                          <span className="text-red-400 font-semibold uppercase">{match.opponent}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {g.scorerName ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="w-7 h-7 bg-neon text-black rounded-sm flex items-center justify-center text-xs font-mono font-bold">
+                              {g.scorerNumber}
+                            </span>
+                            {g.scorerName}
+                          </span>
+                        ) : (
+                          <span className="text-white/45 italic">
+                            {g.type === 'away' ? 'Golo Adversário' : 'Sem marcador'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
         {/* Subs log */}
         <section className="mt-8">
           <SectionHeader title="Histórico de Substituições" count={subs.length} icon={History} />
@@ -697,6 +855,67 @@ function LiveMatch({ team, match, onEnd }) {
           )}
         </section>
       </main>
+
+      {/* Scorer picker modal */}
+      {pendingGoalType === 'home' && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-5 fade-up"
+          onClick={() => setPendingGoalType(null)}
+        >
+          <div
+            className="bg-[#0f0f0f] border border-neon/40 rounded-sm w-full max-w-lg p-5 lg:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <div className="text-[10px] tracking-label uppercase text-neon mb-1">
+                  {half}.ª Parte · {formatTime(elapsedHalf)}
+                </div>
+                <h3 className="font-display text-2xl uppercase">Quem marcou?</h3>
+                <div className="text-xs text-white/55 mt-1">
+                  Seleciona o autor do golo (apenas jogadores em campo).
+                </div>
+              </div>
+              <button
+                onClick={() => setPendingGoalType(null)}
+                className="text-white/60 hover:text-red-400 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {onCourtPlayers.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => recordGoal('home', p)}
+                  className="w-full flex items-center gap-3 p-3 border border-white/10 bg-[#0a0a0a] rounded-sm hover:border-neon hover:bg-[#161b05] transition-all text-left"
+                >
+                  <span className="w-11 h-11 bg-neon text-black rounded-sm flex items-center justify-center font-display text-xl tabular-nums">
+                    {p.number}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm uppercase tracking-wide truncate">
+                      {p.name}
+                    </div>
+                    <div className="text-[10px] tracking-label uppercase text-white/45">
+                      {p.position}
+                    </div>
+                  </span>
+                  <Check size={18} className="text-neon" />
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => recordGoal('home', null)}
+              className="w-full mt-4 text-xs uppercase tracking-label text-white/55 hover:text-neon py-2 transition-colors"
+            >
+              Sem marcador identificado
+            </button>
+          </div>
+        </div>
+      )}
       <Footer />
     </div>
   );

@@ -18,13 +18,21 @@ export default function Estatisticas() {
     matches.forEach((m) => {
       m.players.forEach((p) => {
         if (!stats[p.id]) {
-          stats[p.id] = { id: p.id, name: p.name, number: p.number, position: p.position, totalTime: 0, games: 0 };
+          stats[p.id] = {
+            id: p.id, name: p.name, number: p.number, position: p.position,
+            totalTime: 0, games: 0, scored: 0, goalsFor: 0, goalsAgainst: 0,
+          };
         }
         stats[p.id].totalTime += p.totalTime || 0;
+        stats[p.id].scored += p.scored || 0;
+        stats[p.id].goalsFor += p.goalsFor || 0;
+        stats[p.id].goalsAgainst += p.goalsAgainst || 0;
         if ((p.totalTime || 0) > 0) stats[p.id].games += 1;
       });
     });
-    return Object.values(stats).sort((a, b) => b.totalTime - a.totalTime);
+    return Object.values(stats)
+      .map((s) => ({ ...s, plusMinus: s.goalsFor - s.goalsAgainst }))
+      .sort((a, b) => b.totalTime - a.totalTime);
   }, [matches]);
 
   if (!team) {
@@ -90,17 +98,21 @@ export default function Estatisticas() {
                 <span className="w-7 h-7 bg-neon text-black flex items-center justify-center rounded-sm">
                   <Trophy size={14} />
                 </span>
-                Minutos por Atleta (Total)
+                Atletas · Minutos & Golos (Total)
               </h2>
-              <div className="border border-white/10 rounded-sm overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="border border-white/10 rounded-sm overflow-x-auto">
+                <table className="w-full text-sm min-w-[720px]">
                   <thead className="bg-[#0f0f0f] text-[10px] tracking-label uppercase text-white/50">
                     <tr>
                       <th className="text-left px-4 py-3 w-16">#</th>
                       <th className="text-left px-4 py-3">Atleta</th>
                       <th className="text-left px-4 py-3 w-20">Pos.</th>
-                      <th className="text-right px-4 py-3 w-28">Jogos</th>
-                      <th className="text-right px-4 py-3 w-32">Minutos</th>
+                      <th className="text-right px-4 py-3 w-20">Jogos</th>
+                      <th className="text-right px-4 py-3 w-28">Minutos</th>
+                      <th className="text-right px-4 py-3 w-20" title="Golos marcados">G</th>
+                      <th className="text-right px-4 py-3 w-20" title="Golos a favor enquanto em campo">GF</th>
+                      <th className="text-right px-4 py-3 w-20" title="Golos sofridos enquanto em campo">GS</th>
+                      <th className="text-right px-4 py-3 w-20" title="Diferencial (+/-)">+/-</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -115,10 +127,23 @@ export default function Estatisticas() {
                         <td className="px-4 py-3 text-white/55 text-xs uppercase tracking-label">{a.position}</td>
                         <td className="px-4 py-3 text-right font-mono">{a.games}</td>
                         <td className="px-4 py-3 text-right font-mono text-neon">{formatTimeLong(a.totalTime)}</td>
+                        <td className="px-4 py-3 text-right font-mono">
+                          {a.scored > 0 ? <span className="text-neon">{a.scored}</span> : <span className="text-white/30">0</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-white/80">{a.goalsFor}</td>
+                        <td className="px-4 py-3 text-right font-mono text-white/80">{a.goalsAgainst}</td>
+                        <td className={`px-4 py-3 text-right font-mono font-bold ${
+                          a.plusMinus > 0 ? 'text-neon' : a.plusMinus < 0 ? 'text-red-400' : 'text-white/40'
+                        }`}>
+                          {a.plusMinus > 0 ? '+' : ''}{a.plusMinus}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="text-[10px] tracking-label uppercase text-white/40 mt-2">
+                G = golos marcados · GF = golos a favor em campo · GS = golos sofridos em campo · +/- = diferencial
               </div>
             </section>
 
@@ -140,10 +165,30 @@ export default function Estatisticas() {
                         className="w-full p-4 lg:p-5 flex items-center justify-between gap-4 hover:bg-[#141414] transition-colors text-left"
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 mb-1">
+                          <div className="flex items-center gap-3 mb-1 flex-wrap">
                             <div className="font-display text-xl lg:text-2xl uppercase truncate">
                               {team.name} <span className="text-white/40">vs</span> {m.opponent}
                             </div>
+                            {(typeof m.homeScore === 'number') && (
+                              <span className="font-display text-xl lg:text-2xl tabular-nums">
+                                <span className={m.homeScore > m.awayScore ? 'text-neon' : m.homeScore < m.awayScore ? 'text-white/70' : 'text-white'}>
+                                  {m.homeScore}
+                                </span>
+                                <span className="text-white/30 mx-2">·</span>
+                                <span className={m.awayScore > m.homeScore ? 'text-red-400' : 'text-white/70'}>
+                                  {m.awayScore}
+                                </span>
+                              </span>
+                            )}
+                            {(typeof m.homeScore === 'number') && (
+                              <span className={`text-[10px] tracking-label uppercase px-2 py-1 rounded-sm ${
+                                m.homeScore > m.awayScore ? 'bg-neon/15 text-neon' :
+                                m.homeScore < m.awayScore ? 'bg-red-500/15 text-red-400' :
+                                'bg-white/10 text-white/60'
+                              }`}>
+                                {m.homeScore > m.awayScore ? 'Vitória' : m.homeScore < m.awayScore ? 'Derrota' : 'Empate'}
+                              </span>
+                            )}
                           </div>
                           <div className="text-[10px] tracking-label uppercase text-white/50">
                             {m.competition && <>{m.competition} · </>}
@@ -151,7 +196,7 @@ export default function Estatisticas() {
                             {new Date(m.date).toLocaleDateString('pt-PT', {
                               day: '2-digit', month: '2-digit', year: 'numeric',
                             })}{' '}
-                            · {m.players.length} atletas · {m.subs.length} substituições
+                            · {m.players.length} atletas · {(m.goals || []).length} golos · {m.subs.length} substituições
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
@@ -179,30 +224,85 @@ export default function Estatisticas() {
 
                       {isOpen && (
                         <div className="border-t border-white/10 p-4 lg:p-5 space-y-5">
-                          {/* Players summary */}
+                          {/* Goals timeline */}
+                          {(m.goals || []).length > 0 && (
+                            <div>
+                              <div className="text-[10px] tracking-label uppercase text-neon mb-2 flex items-center gap-2">
+                                <Trophy size={12} /> Marcador ({(m.goals || []).length} golos)
+                              </div>
+                              <div className="space-y-1">
+                                {[...m.goals].reverse().map((g) => (
+                                  <div key={g.id} className="text-xs flex items-center gap-3">
+                                    <span className="font-mono text-white/50 w-16">
+                                      {g.half}.ª {formatTime(g.minute)}
+                                    </span>
+                                    {g.type === 'home' ? (
+                                      <>
+                                        <span className="text-neon font-semibold uppercase w-24 truncate">{team.name}</span>
+                                        <span className="flex-1">
+                                          {g.scorerName ? (
+                                            <span className="inline-flex items-center gap-2">
+                                              <span className="w-5 h-5 bg-neon text-black rounded-sm flex items-center justify-center text-[10px] font-mono font-bold">
+                                                {g.scorerNumber}
+                                              </span>
+                                              {g.scorerName}
+                                            </span>
+                                          ) : (
+                                            <span className="text-white/40 italic">Sem marcador</span>
+                                          )}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="text-red-400 font-semibold uppercase w-24 truncate">{m.opponent}</span>
+                                        <span className="flex-1 text-white/40 italic">Golo Adversário</span>
+                                      </>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Players summary with +/- */}
                           <div>
                             <div className="text-[10px] tracking-label uppercase text-neon mb-2 flex items-center gap-2">
-                              <Users size={12} /> Minutos por Atleta neste Jogo
+                              <Users size={12} /> Atletas neste Jogo
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                               {[...m.players]
                                 .sort((a, b) => b.totalTime - a.totalTime)
-                                .map((p) => (
-                                  <div
-                                    key={p.id}
-                                    className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-sm px-3 py-2"
-                                  >
-                                    <span className="w-7 h-7 bg-white/10 rounded-sm flex items-center justify-center text-xs font-mono">
-                                      {p.number}
-                                    </span>
-                                    <span className="flex-1 text-xs uppercase tracking-wide truncate">
-                                      {p.name}
-                                    </span>
-                                    <span className="font-mono text-sm text-neon tabular-nums">
-                                      {formatTime(p.totalTime)}
-                                    </span>
-                                  </div>
-                                ))}
+                                .map((p) => {
+                                  const pm = (p.goalsFor || 0) - (p.goalsAgainst || 0);
+                                  return (
+                                    <div
+                                      key={p.id}
+                                      className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-sm px-3 py-2"
+                                    >
+                                      <span className="w-7 h-7 bg-white/10 rounded-sm flex items-center justify-center text-xs font-mono">
+                                        {p.number}
+                                      </span>
+                                      <span className="flex-1 min-w-0 text-xs uppercase tracking-wide truncate">
+                                        {p.name}
+                                      </span>
+                                      {p.scored > 0 && (
+                                        <span className="text-[10px] tracking-label uppercase text-neon" title="Golos">
+                                          ⚽{p.scored}
+                                        </span>
+                                      )}
+                                      <span className={`font-mono text-[10px] tabular-nums px-1.5 py-0.5 rounded-sm ${
+                                        pm > 0 ? 'bg-neon/15 text-neon' :
+                                        pm < 0 ? 'bg-red-500/15 text-red-400' :
+                                        'bg-white/5 text-white/50'
+                                      }`} title="Diferencial em campo">
+                                        {pm > 0 ? '+' : ''}{pm}
+                                      </span>
+                                      <span className="font-mono text-sm text-neon tabular-nums">
+                                        {formatTime(p.totalTime)}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                             </div>
                           </div>
 
