@@ -43,14 +43,14 @@ export default function Login() {
           {/* Bottom-left content */}
           <div className="absolute bottom-12 left-8 right-8 lg:right-16 z-10">
             <div className="text-neon text-[11px] tracking-label uppercase mb-4">
-              Monitoriza · Calcula · Previne
+              Cronometra · Substitui · Decide
             </div>
             <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl xl:text-7xl leading-[0.95] uppercase">
-              Gere a carga. <br />
-              <span className="text-neon">Protege</span> o atleta.
+              Controla o tempo. <br />
+              <span className="text-neon">Domina</span> o jogo.
             </h1>
             <p className="text-sm text-white/65 mt-5 max-w-md leading-relaxed">
-              Tempos individuais, parciais, substituições e alertas de carga em tempo real para a tua equipa de futsal.
+              Tempos individuais, parciais e substituições em tempo real para a tua equipa de futsal.
             </p>
           </div>
         </div>
