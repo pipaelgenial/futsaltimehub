@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { toast } from 'sonner';
+import { setUser, getTeam } from '../lib/storage';
 
 const HERO_IMG = 'https://images.unsplash.com/photo-1630420598913-44208d36f9af?auto=format&fit=crop&w=1600&q=80';
 
@@ -17,10 +18,10 @@ export default function Login() {
       toast.error('PREENCHA TODOS OS CAMPOS');
       return;
     }
-    // Mock auth - save to localStorage
-    localStorage.setItem('flh_user', JSON.stringify({ email, name: email.split('@')[0] }));
+    setUser({ email, name: email.split('@')[0] });
     toast.success('SESSÃO INICIADA');
-    setTimeout(() => navigate('/dashboard'), 400);
+    const hasTeam = !!getTeam();
+    setTimeout(() => navigate(hasTeam ? '/dashboard' : '/team-setup'), 400);
   };
 
   return (
