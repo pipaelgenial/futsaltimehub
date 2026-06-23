@@ -40,24 +40,20 @@ function CreateMatchForm({ team, roster, onCreated }) {
   const [competition, setCompetition] = useState('');
   const [matchday, setMatchday] = useState('');
   const [venue, setVenue] = useState('');
-  // assignment: { [playerId]: 'court' | 'bench' | 'out' }
-  const [assignment, setAssignment] = useState({});
+  // selectedOrder: array of player IDs in selection order. First 5 = court, rest = bench.
+  const [selectedOrder, setSelectedOrder] = useState([]);
 
-  const courtCount = Object.values(assignment).filter((v) => v === 'court').length;
-  const benchCount = Object.values(assignment).filter((v) => v === 'bench').length;
+  const courtIds = selectedOrder.slice(0, 5);
+  const benchIds = selectedOrder.slice(5);
+  const courtCount = courtIds.length;
+  const benchCount = benchIds.length;
 
-  const cycle = (id) => {
-    setAssignment((prev) => {
-      const cur = prev[id] || 'out';
-      let next = 'out';
-      if (cur === 'out') next = 'court';
-      else if (cur === 'court') next = 'bench';
-      else next = 'out';
-      if (next === 'court' && courtCount >= 5 && cur !== 'court') {
-        toast.error('MÁXIMO 5 EM CAMPO');
-        return prev;
+  const togglePlayer = (id) => {
+    setSelectedOrder((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((x) => x !== id);
       }
-      return { ...prev, [id]: next };
+      return [...prev, id];
     });
   };
 
@@ -67,19 +63,21 @@ function CreateMatchForm({ team, roster, onCreated }) {
       return;
     }
     if (courtCount !== 5) {
-      toast.error('ESCOLHE EXATAMENTE 5 ATLETAS EM CAMPO');
+      toast.error('ESCOLHE PELO MENOS 5 ATLETAS (OS PRIMEIROS 5 IRÃO PARA O CAMPO)');
       return;
     }
 
-    const selected = roster
-      .filter((p) => assignment[p.id] === 'court' || assignment[p.id] === 'bench')
-      .map((p) => ({
+    const selected = selectedOrder
+      .map((id) => roster.find((p) => p.id === id))
+      .filter(Boolean)
+      .map((p, idx) => ({
         ...p,
-        onCourt: assignment[p.id] === 'court',
+        onCourt: idx < 5,
         totalTime: 0,
         currentStint: 0,
-        stintsCount: assignment[p.id] === 'court' ? 1 : 0,
+        stintsCount: idx < 5 ? 1 : 0,
         lastStintTime: 0,
+        sentOff: false,
       }));
 
     const match = {
@@ -186,7 +184,7 @@ function CreateMatchForm({ team, roster, onCreated }) {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[10px] tracking-label uppercase text-white/55">
-                  Plantel ({roster.length}) · Clica para definir
+                  Plantel ({roster.length}) · Os primeiros 5 selecionados ficam em campo
                 </div>
                 <div className="text-[10px] tracking-label uppercase flex gap-3">
                   <span className="flex items-center gap-1.5">
@@ -196,7 +194,7 @@ function CreateMatchForm({ team, roster, onCreated }) {
                     <span className="w-2 h-2 bg-blue-400 rounded-full" /> Banco
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-white/20 rounded-full" /> Fora
+                    <span className="w-2 h-2 bg-white/20 rounded-full" /> Não Convocado
                   </span>
                 </div>
               </div>
@@ -204,12 +202,13 @@ function CreateMatchForm({ team, roster, onCreated }) {
                 {[...roster]
                   .sort((a, b) => a.number - b.number)
                   .map((p) => {
-                    const state = assignment[p.id] || 'out';
+                    const idx = selectedOrder.indexOf(p.id);
+                    const state = idx === -1 ? 'out' : idx < 5 ? 'court' : 'bench';
                     return (
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => cycle(p.id)}
+                        onClick={() => togglePlayer(p.id)}
                         className={`text-left p-3 rounded-sm border transition-all flex items-center gap-3 ${
                           state === 'court'
                             ? 'border-neon bg-[#161b05]'
@@ -236,7 +235,7 @@ function CreateMatchForm({ team, roster, onCreated }) {
                           </div>
                         </div>
                         <span
-                          className={`text-[10px] tracking-label uppercase shrink-0 ${
+                          className={`text-[10px] tracking-label uppercase shrink-0 text-right ${
                             state === 'court'
                               ? 'text-neon'
                               : state === 'bench'
@@ -244,12 +243,21 @@ function CreateMatchForm({ team, roster, onCreated }) {
                               : 'text-white/30'
                           }`}
                         >
-                          {state === 'court' ? 'Campo' : state === 'bench' ? 'Banco' : 'Fora'}
+                          {state === 'court' ? `Campo · ${idx + 1}.º` : state === 'bench' ? `Banco · ${idx - 4}.º` : 'Não convocado'}
                         </span>
                       </button>
                     );
                   })}
               </div>
+              {selectedOrder.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrder([])}
+                  className="mt-3 text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors"
+                >
+                  ↶ Limpar seleção
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -539,12 +547,13 @@ function LiveMatch({ team, match, onEnd }) {
 
   // Picker openers
   const openGoalScorerPicker = () => {
-    if (ended || onCourtPlayers.length === 0) return;
+    const eligible = onCourtPlayers.filter((p) => !p.sentOff);
+    if (ended || eligible.length === 0) return;
     setPendingPicker({
       kind: 'goal',
       title: 'Quem marcou?',
       subtitle: 'Seleciona o autor do golo (apenas jogadores em campo).',
-      players: onCourtPlayers,
+      players: eligible,
       allowNone: true,
       accent: 'neon',
       onPick: (p) => recordGoal('home', p),
@@ -552,12 +561,13 @@ function LiveMatch({ team, match, onEnd }) {
   };
 
   const openFoulCommitterPicker = () => {
-    if (ended || onCourtPlayers.length === 0) return;
+    const eligible = onCourtPlayers.filter((p) => !p.sentOff);
+    if (ended || eligible.length === 0) return;
     setPendingPicker({
       kind: 'foul',
       title: 'Falta marcada por',
       subtitle: 'Quem cometeu a falta? (jogadores em campo)',
-      players: onCourtPlayers,
+      players: eligible,
       allowNone: true,
       accent: 'orange',
       onPick: (p) => recordFoul('committed', p),
@@ -566,8 +576,8 @@ function LiveMatch({ team, match, onEnd }) {
 
   const openCardPicker = (cardType) => {
     if (ended) return;
-    // Cards usually go to court players, but bench players can also get them
-    const eligible = players.filter((p) => p.onCourt);
+    // Exclude already sent-off players, they can't receive more cards
+    const eligible = players.filter((p) => p.onCourt && !p.sentOff);
     if (eligible.length === 0) {
       toast.error('SEM JOGADORES EM CAMPO');
       return;
@@ -626,6 +636,11 @@ function LiveMatch({ team, match, onEnd }) {
   };
   const handleBenchClick = (pid) => {
     if (ended) return;
+    const p = players.find((x) => x.id === pid);
+    if (p?.sentOff) {
+      toast.error('JOGADOR EXPULSO', { description: 'Não pode voltar a jogar.' });
+      return;
+    }
     if (selectedOut !== null) {
       performSubstitution(selectedOut, pid);
       return;
@@ -1304,36 +1319,48 @@ function DisciplineTile({ label, hint, value, suffix, color, onAdd, disabled, wa
 
 function PlayerCard({ player, onClick, selected, onCourt, disabled }) {
   const stintActive = onCourt && player.currentStint > 0;
+  const sentOff = player.sentOff;
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
-      className={`text-left rounded-sm border p-4 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-        selected
+      disabled={disabled || sentOff}
+      className={`text-left rounded-sm border p-4 transition-all disabled:cursor-not-allowed ${
+        sentOff
+          ? 'border-red-500/40 bg-red-500/5 opacity-70'
+          : selected
           ? onCourt
             ? 'border-red-500/70 bg-red-500/5'
             : 'border-neon bg-[#161b05]'
           : onCourt
           ? 'border-white/10 bg-[#0f0f0f] hover:border-neon/50 hover:bg-[#121509]'
           : 'border-white/10 bg-[#0a0a0a] hover:border-white/25'
-      }`}
+      } ${disabled && !sentOff ? 'opacity-50' : ''}`}
     >
       <div className="flex items-start gap-3 mb-3">
         <div
           className={`w-11 h-11 flex items-center justify-center rounded-sm font-display text-xl tabular-nums ${
+            sentOff ? 'bg-red-500/30 text-red-300 line-through' :
             onCourt ? 'bg-neon text-black' : 'bg-white/10 text-white/80'
           }`}
         >
           {player.number}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm uppercase tracking-wide truncate">{player.name}</div>
-          <div className="text-[10px] tracking-label uppercase text-white/45 mt-0.5">
-            {player.position}
+          <div className={`font-semibold text-sm uppercase tracking-wide truncate ${sentOff ? 'text-red-400' : ''}`}>
+            {player.name}
+          </div>
+          <div className="text-[10px] tracking-label uppercase text-white/45 mt-0.5 flex items-center gap-2">
+            <span>{player.position}</span>
+            {sentOff && (
+              <span className="inline-flex items-center gap-1 text-red-400 font-semibold">
+                <span className="inline-block w-2 h-3 bg-red-500 rounded-[1px]" />
+                Expulso
+              </span>
+            )}
           </div>
         </div>
-        {stintActive && (
+        {stintActive && !sentOff && (
           <span className="w-2 h-2 rounded-full bg-red-500 live-dot mt-2" title="Em jogo" />
         )}
       </div>
@@ -1357,7 +1384,8 @@ function PlayerCard({ player, onClick, selected, onCourt, disabled }) {
 
       <div className="flex items-center justify-between mt-3 text-[10px] tracking-label uppercase text-white/40">
         <span>Entradas: {player.stintsCount}</span>
-        {onCourt ? <span className="text-neon">Em campo</span> : <span>Banco</span>}
+        {sentOff ? <span className="text-red-400">Expulso</span> :
+         onCourt ? <span className="text-neon">Em campo</span> : <span>Banco</span>}
       </div>
     </button>
   );

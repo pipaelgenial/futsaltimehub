@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
-import { Timer, Users, BarChart3, LogOut, ChevronRight, Shield, Trash2 } from 'lucide-react';
+import { Timer, Users, BarChart3, LogOut, ChevronRight, Shield, Trash2, RotateCcw } from 'lucide-react';
 import {
   getUser, clearUser, getTeam, clearTeam, getRoster, getMatches, getActiveMatch, clearActiveMatch, setRoster,
 } from '../lib/storage';
@@ -54,12 +54,20 @@ export default function Dashboard() {
   };
 
   const handleResetTeam = () => {
-    if (!window.confirm('Apagar a equipa e todos os dados (plantel, jogos, jogo em curso)? Esta ação é irreversível.')) return;
+    if (!window.confirm('APAGAR TUDO?\n\nVai apagar:\n· A equipa\n· Todos os atletas do plantel\n· Todos os jogos do histórico\n· Jogo em curso (se existir)\n\nEsta ação é irreversível.')) return;
+    if (!window.confirm('Tens a certeza? Esta ação não pode ser desfeita.')) return;
     clearTeam();
     setRoster([]);
     clearActiveMatch();
     localStorage.removeItem('flh_matches');
     navigate('/team-setup');
+  };
+
+  const handleResetMatches = () => {
+    if (!window.confirm('Apagar apenas o histórico de jogos? Equipa e plantel mantêm-se.')) return;
+    localStorage.removeItem('flh_matches');
+    clearActiveMatch();
+    window.location.reload();
   };
 
   const totalMinutesPlayed = matches.reduce((s, m) => s + (m.totalDuration || 0), 0);
@@ -166,27 +174,37 @@ export default function Dashboard() {
         </div>
 
         {/* Team info / danger zone */}
-        <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-sm flex items-center justify-center"
-              style={{ backgroundColor: team.color || '#d4ff1a' }}
-            >
-              <Shield size={18} className="text-black" />
-            </div>
-            <div>
-              <div className="font-display text-base uppercase">{team.name}</div>
-              <div className="text-[10px] tracking-label uppercase text-white/50">
-                Criada em {new Date(team.createdAt).toLocaleDateString('pt-PT')}
+        <div className="border border-red-500/20 bg-red-500/5 rounded-sm p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-sm flex items-center justify-center"
+                style={{ backgroundColor: team.color || '#d4ff1a' }}
+              >
+                <Shield size={18} className="text-black" />
+              </div>
+              <div>
+                <div className="font-display text-base uppercase">{team.name}</div>
+                <div className="text-[10px] tracking-label uppercase text-white/50">
+                  Criada em {new Date(team.createdAt).toLocaleDateString('pt-PT')} · Zona de perigo
+                </div>
               </div>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleResetMatches}
+                className="text-xs uppercase tracking-label bg-white/5 border border-white/10 text-white/70 hover:text-orange-400 hover:border-orange-400/40 flex items-center gap-2 px-4 py-2 rounded-sm transition-colors"
+              >
+                <RotateCcw size={12} /> Limpar Histórico
+              </button>
+              <button
+                onClick={handleResetTeam}
+                className="text-xs uppercase tracking-label bg-red-500/15 border border-red-500/40 text-red-300 hover:bg-red-500/25 flex items-center gap-2 px-4 py-2 rounded-sm transition-colors font-semibold"
+              >
+                <Trash2 size={12} /> Reset Total
+              </button>
+            </div>
           </div>
-          <button
-            onClick={handleResetTeam}
-            className="text-xs uppercase tracking-label text-white/45 hover:text-red-400 flex items-center gap-2 transition-colors"
-          >
-            <Trash2 size={12} /> Reiniciar Equipa
-          </button>
         </div>
       </main>
       <Footer />
