@@ -789,7 +789,6 @@ function LiveMatch({ team, match, onEnd }) {
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 lg:gap-6">
             {/* Home */}
             <div className="text-right">
-              <div className="text-[10px] tracking-label uppercase text-neon mb-1">Casa</div>
               <div className="font-display text-xl lg:text-2xl uppercase truncate">{team.name}</div>
               <button
                 onClick={openGoalScorerPicker}
@@ -821,7 +820,6 @@ function LiveMatch({ team, match, onEnd }) {
 
             {/* Away */}
             <div>
-              <div className="text-[10px] tracking-label uppercase text-red-400 mb-1">Fora</div>
               <div className="font-display text-xl lg:text-2xl uppercase truncate">{match.opponent}</div>
               <button
                 onClick={() => !ended && recordGoal('away')}
