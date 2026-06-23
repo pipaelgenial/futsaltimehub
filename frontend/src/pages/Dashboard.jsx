@@ -186,7 +186,7 @@ export default function Dashboard() {
               <div>
                 <div className="font-display text-base uppercase">{team.name}</div>
                 <div className="text-[10px] tracking-label uppercase text-white/50">
-                  Criada em {new Date(team.createdAt).toLocaleDateString('pt-PT')} · Zona de perigo
+                  Criada em {new Date(team.createdAt).toLocaleDateString('pt-PT')}
                 </div>
               </div>
             </div>
