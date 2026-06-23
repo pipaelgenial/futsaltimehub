@@ -78,6 +78,8 @@ function CreateMatchForm({ team, roster, onCreated }) {
         stintsCount: idx < 5 ? 1 : 0,
         lastStintTime: 0,
         sentOff: false,
+        // stints: [{ inHalf, inMinute, outHalf, outMinute, duration }]
+        stints: idx < 5 ? [{ inHalf: 1, inMinute: 0, outHalf: null, outMinute: null, duration: 0 }] : [],
       }));
 
     const match = {
@@ -295,6 +297,7 @@ function LiveMatch({ team, match, onEnd }) {
   const [goals, setGoals] = useState(match.goals || []);
   const [fouls, setFouls] = useState(match.fouls || []);
   const [cards, setCards] = useState(match.cards || []);
+  const [emptySlots, setEmptySlots] = useState(match.emptySlots || []); // [{id, half, secondsRemaining, originalNumber, originalName, originalPlayerId}]
   // pendingPicker = { title, subtitle, onPick, allowNone, accent } | null
   const [pendingPicker, setPendingPicker] = useState(null);
   const [half, setHalf] = useState(match.half);
@@ -317,8 +320,8 @@ function LiveMatch({ team, match, onEnd }) {
 
   // Persist on state change
   useEffect(() => {
-    setActiveMatch({ ...match, players, subs, goals, fouls, cards, half, elapsedHalf, ended });
-  }, [players, subs, goals, fouls, cards, half, elapsedHalf, ended]); // eslint-disable-line
+    setActiveMatch({ ...match, players, subs, goals, fouls, cards, emptySlots, half, elapsedHalf, ended });
+  }, [players, subs, goals, fouls, cards, emptySlots, half, elapsedHalf, ended]); // eslint-disable-line
 
   // Tick
   useEffect(() => {
@@ -343,6 +346,10 @@ function LiveMatch({ team, match, onEnd }) {
             ? { ...p, totalTime: p.totalTime + 1, currentStint: p.currentStint + 1 }
             : p
         )
+      );
+      // Decrement empty slot countdown timers (2 min penalty after red card)
+      setEmptySlots((prev) =>
+        prev.map((s) => (s.secondsRemaining > 0 ? { ...s, secondsRemaining: s.secondsRemaining - 1 } : s))
       );
     }, 1000);
     return () => clearInterval(tickRef.current);
@@ -373,17 +380,37 @@ function LiveMatch({ team, match, onEnd }) {
       setHalf(2);
       setElapsedHalf(0);
       setRunning(false);
-      // reset current stints but keep total times
+      // Close all open stints at end of half 1, reopen new stints at half 2 minute 0 for those still on court
       setPlayers((prev) =>
-        prev.map((p) =>
-          p.onCourt ? { ...p, currentStint: 0, stintsCount: p.stintsCount + 1 } : p
-        )
+        prev.map((p) => {
+          const stints = (p.stints || []).map((s, i, arr) =>
+            i === arr.length - 1 && s.outHalf === null
+              ? { ...s, outHalf: 1, outMinute: HALF_DURATION, duration: p.currentStint }
+              : s
+          );
+          if (p.onCourt) {
+            stints.push({ inHalf: 2, inMinute: 0, outHalf: null, outMinute: null, duration: 0 });
+            return { ...p, currentStint: 0, stintsCount: p.stintsCount + 1, stints };
+          }
+          return { ...p, stints };
+        })
       );
       toast.success('2.ª PARTE PRONTA');
     } else {
       if (!window.confirm('Terminar o jogo definitivamente?')) return;
       setRunning(false);
       setEnded(true);
+      // Close all open stints at end of game
+      setPlayers((prev) =>
+        prev.map((p) => {
+          const stints = (p.stints || []).map((s, i, arr) =>
+            i === arr.length - 1 && s.outHalf === null
+              ? { ...s, outHalf: half, outMinute: elapsedHalf, duration: p.currentStint }
+              : s
+          );
+          return { ...p, stints };
+        })
+      );
       toast.message('JOGO TERMINADO', { description: 'Podes agora gravar.' });
     }
   };
@@ -400,6 +427,7 @@ function LiveMatch({ team, match, onEnd }) {
       if (!window.confirm('O jogo não terminou. Gravar mesmo assim?')) return;
     }
     // Compute +/- and discipline per player from goals/fouls/cards
+    // Also close any open stints
     const playerStats = players.map((p) => {
       let gf = 0, gc = 0;
       goals.forEach((g) => {
@@ -408,14 +436,21 @@ function LiveMatch({ team, match, onEnd }) {
           else gc += 1;
         }
       });
+      const stints = (p.stints || []).map((s, i, arr) =>
+        i === arr.length - 1 && s.outHalf === null
+          ? { ...s, outHalf: half, outMinute: elapsedHalf, duration: p.currentStint }
+          : s
+      );
       return {
         id: p.id, number: p.number, name: p.name, position: p.position,
         totalTime: p.totalTime, stintsCount: p.stintsCount,
+        stints,
         goalsFor: gf, goalsAgainst: gc, plusMinus: gf - gc,
         scored: goals.filter((g) => g.scorerId === p.id).length,
         foulsCommitted: fouls.filter((f) => f.playerId === p.id && f.type === 'committed').length,
         yellowCards: cards.filter((c) => c.playerId === p.id && c.type === 'yellow').length,
         redCards: cards.filter((c) => c.playerId === p.id && c.type === 'red').length,
+        sentOff: p.sentOff || false,
       };
     });
 
@@ -465,6 +500,10 @@ function LiveMatch({ team, match, onEnd }) {
         description: scorer ? `${scorer.number} ${scorer.name.toUpperCase()}` : 'Sem marcador',
       });
     } else {
+      // Futsal rule: when opponent scores, the 2-min penalty ends - the team can immediately bring a substitute
+      setEmptySlots((prev) =>
+        prev.map((s) => (s.secondsRemaining > 0 ? { ...s, secondsRemaining: 0 } : s))
+      );
       toast.message('GOLO ADVERSÁRIO', { description: match.opponent });
     }
   };
@@ -520,16 +559,30 @@ function LiveMatch({ team, match, onEnd }) {
     setCards((cs) => [card, ...cs]);
     setPendingPicker(null);
     if (type === 'red') {
-      // On red card, send player to bench (out of game) - keep in roster but not on court
+      // On red card: send player to bench (sentOff) and create empty slot with 2-min penalty
       setPlayers((prev) =>
-        prev.map((p) =>
-          p.id === player.id && p.onCourt
-            ? { ...p, onCourt: false, lastStintTime: p.currentStint, currentStint: 0, sentOff: true }
-            : p
-        )
+        prev.map((p) => {
+          if (p.id !== player.id || !p.onCourt) return p;
+          const newStints = (p.stints || []).map((s, i, arr) =>
+            i === arr.length - 1 && s.outHalf === null
+              ? { ...s, outHalf: half, outMinute: elapsedHalf, duration: p.currentStint }
+              : s
+          );
+          return { ...p, onCourt: false, lastStintTime: p.currentStint, currentStint: 0, sentOff: true, stints: newStints };
+        })
       );
+      const slot = {
+        id: Date.now() + Math.random() + 1,
+        half,
+        sentOffAt: elapsedHalf,
+        secondsRemaining: 120, // 2 minutes penalty
+        originalPlayerId: player.id,
+        originalNumber: player.number,
+        originalName: player.name,
+      };
+      setEmptySlots((prev) => [...prev, slot]);
       toast.error('CARTÃO VERMELHO', {
-        description: `${player.number} ${player.name.toUpperCase()} \u2014 Expulso`,
+        description: `${player.number} ${player.name.toUpperCase()} \u2014 Expulso · 2 min sem substituto`,
       });
     } else {
       toast.message('CARTÃO AMARELO', {
@@ -543,6 +596,46 @@ function LiveMatch({ team, match, onEnd }) {
     if (!window.confirm('Anular o último cartão registado?')) return;
     setCards((cs) => cs.slice(1));
     toast.message('CARTÃO ANULADO');
+  };
+
+  const openFillSlotPicker = (slot) => {
+    if (ended) return;
+    if (slot.secondsRemaining > 0) {
+      toast.error(`AGUARDA ${formatTime(slot.secondsRemaining)}`, {
+        description: 'Restam minutos da expulsão.',
+      });
+      return;
+    }
+    const eligible = players.filter((p) => !p.onCourt && !p.sentOff);
+    if (eligible.length === 0) {
+      toast.error('SEM JOGADORES NO BANCO');
+      return;
+    }
+    setPendingPicker({
+      kind: 'fill',
+      title: 'Substituto para entrar',
+      subtitle: `Lugar de ${slot.originalNumber} ${slot.originalName.toUpperCase()} (expulso). Escolhe quem entra.`,
+      players: eligible,
+      allowNone: false,
+      accent: 'neon',
+      onPick: (p) => fillEmptySlot(slot.id, p),
+    });
+  };
+
+  const fillEmptySlot = (slotId, player) => {
+    if (!player) return;
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (p.id !== player.id) return p;
+        const newStints = [...(p.stints || []), { inHalf: half, inMinute: elapsedHalf, outHalf: null, outMinute: null, duration: 0 }];
+        return { ...p, onCourt: true, currentStint: 0, stintsCount: p.stintsCount + 1, stints: newStints };
+      })
+    );
+    setEmptySlots((prev) => prev.filter((s) => s.id !== slotId));
+    setPendingPicker(null);
+    toast.success('SUBSTITUTO ENTROU', {
+      description: `${player.number} ${player.name.toUpperCase()} substitui o expulso`,
+    });
   };
 
   // Picker openers
@@ -599,10 +692,18 @@ function LiveMatch({ team, match, onEnd }) {
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.id === outId) {
-          return { ...p, onCourt: false, lastStintTime: p.currentStint, currentStint: 0 };
+          // Close last stint
+          const newStints = (p.stints || []).map((s, i, arr) =>
+            i === arr.length - 1 && s.outHalf === null
+              ? { ...s, outHalf: half, outMinute: elapsedHalf, duration: p.currentStint }
+              : s
+          );
+          return { ...p, onCourt: false, lastStintTime: p.currentStint, currentStint: 0, stints: newStints };
         }
         if (p.id === inId) {
-          return { ...p, onCourt: true, currentStint: 0, stintsCount: p.stintsCount + 1 };
+          // Open new stint
+          const newStints = [...(p.stints || []), { inHalf: half, inMinute: elapsedHalf, outHalf: null, outMinute: null, duration: 0 }];
+          return { ...p, onCourt: true, currentStint: 0, stintsCount: p.stintsCount + 1, stints: newStints };
         }
         return p;
       })
@@ -919,7 +1020,7 @@ function LiveMatch({ team, match, onEnd }) {
         {/* Players grids */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4">
           <div>
-            <SectionHeader title="Em Campo" count={onCourtPlayers.length} accent />
+            <SectionHeader title="Em Campo" count={onCourtPlayers.length + emptySlots.length} accent />
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {onCourtPlayers.map((p) => (
                 <PlayerCard
@@ -928,6 +1029,14 @@ function LiveMatch({ team, match, onEnd }) {
                   selected={selectedOut === p.id}
                   onClick={() => handleCourtClick(p.id)}
                   onCourt
+                  disabled={ended}
+                />
+              ))}
+              {emptySlots.map((s) => (
+                <EmptySlotCard
+                  key={s.id}
+                  slot={s}
+                  onClick={() => openFillSlotPicker(s)}
                   disabled={ended}
                 />
               ))}
@@ -1314,6 +1423,54 @@ function DisciplineTile({ label, hint, value, suffix, color, onAdd, disabled, wa
         <Plus size={12} /> Adicionar
       </button>
     </div>
+  );
+}
+
+function EmptySlotCard({ slot, onClick, disabled }) {
+  const ready = slot.secondsRemaining <= 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`text-left rounded-sm border-2 border-dashed p-4 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+        ready
+          ? 'border-neon/60 bg-neon/5 hover:bg-neon/10 hover:border-neon'
+          : 'border-red-500/40 bg-red-500/5'
+      }`}
+    >
+      <div className="flex items-start gap-3 mb-3">
+        <div className={`w-11 h-11 flex items-center justify-center rounded-sm font-display text-xl ${
+          ready ? 'bg-neon/20 text-neon' : 'bg-red-500/20 text-red-300'
+        }`}>
+          <Plus size={20} strokeWidth={2.5} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className={`font-semibold text-sm uppercase tracking-wide truncate ${ready ? 'text-neon' : 'text-red-300'}`}>
+            {ready ? 'Lugar Disponível' : 'Penalização Expulsão'}
+          </div>
+          <div className="text-[10px] tracking-label uppercase text-white/45 mt-0.5">
+            Lugar de #{slot.originalNumber} {slot.originalName}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-black/40 rounded-sm px-3 py-2 col-span-2">
+          <div className="text-[9px] tracking-label uppercase text-white/45">
+            {ready ? 'Pronto a substituir' : 'Tempo restante'}
+          </div>
+          <div className={`font-mono text-base tabular-nums ${ready ? 'text-neon' : 'text-red-400'}`}>
+            {ready ? 'CLICA PARA ESCOLHER' : formatTime(slot.secondsRemaining)}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-3 text-[10px] tracking-label uppercase text-white/40">
+        <span>{slot.half}.ª Parte</span>
+        {ready ? <span className="text-neon">DISPONÍVEL</span> : <span className="text-red-400">A AGUARDAR</span>}
+      </div>
+    </button>
   );
 }
 

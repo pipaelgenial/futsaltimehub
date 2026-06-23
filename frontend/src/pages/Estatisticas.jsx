@@ -353,42 +353,90 @@ export default function Estatisticas() {
                             </div>
                           )}
 
-                          {/* Players summary with +/- */}
+                          {/* Players summary with +/- and parciais */}
                           <div>
                             <div className="text-[10px] tracking-label uppercase text-neon mb-2 flex items-center gap-2">
-                              <Users size={12} /> Atletas neste Jogo
+                              <Users size={12} /> Atletas neste Jogo · Tempos & Parciais
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            <div className="space-y-2">
                               {[...m.players]
                                 .sort((a, b) => b.totalTime - a.totalTime)
                                 .map((p) => {
                                   const pm = (p.goalsFor || 0) - (p.goalsAgainst || 0);
+                                  const stints = p.stints || [];
                                   return (
                                     <div
                                       key={p.id}
-                                      className="flex items-center gap-3 bg-black/40 border border-white/5 rounded-sm px-3 py-2"
+                                      className="bg-black/40 border border-white/5 rounded-sm px-3 py-2.5"
                                     >
-                                      <span className="w-7 h-7 bg-white/10 rounded-sm flex items-center justify-center text-xs font-mono">
-                                        {p.number}
-                                      </span>
-                                      <span className="flex-1 min-w-0 text-xs uppercase tracking-wide truncate">
-                                        {p.name}
-                                      </span>
-                                      {p.scored > 0 && (
-                                        <span className="text-[10px] tracking-label uppercase text-neon" title="Golos">
-                                          ⚽{p.scored}
+                                      <div className="flex items-center gap-3">
+                                        <span className="w-7 h-7 bg-white/10 rounded-sm flex items-center justify-center text-xs font-mono shrink-0">
+                                          {p.number}
                                         </span>
+                                        <span className={`flex-1 min-w-0 text-xs uppercase tracking-wide truncate ${p.sentOff ? 'text-red-400' : ''}`}>
+                                          {p.name}
+                                          {p.sentOff && <span className="ml-2 text-[9px] text-red-400">EXPULSO</span>}
+                                        </span>
+                                        {p.scored > 0 && (
+                                          <span className="text-[10px] tracking-label uppercase text-neon" title="Golos">
+                                            ⚽{p.scored}
+                                          </span>
+                                        )}
+                                        {p.yellowCards > 0 && (
+                                          <span className="inline-flex items-center gap-0.5" title="Cartões amarelos">
+                                            <span className="inline-block w-2 h-2.5 bg-yellow-400 rounded-[1px]" />
+                                            <span className="text-[10px] font-mono text-yellow-300">{p.yellowCards}</span>
+                                          </span>
+                                        )}
+                                        {p.redCards > 0 && (
+                                          <span className="inline-flex items-center gap-0.5" title="Cartões vermelhos">
+                                            <span className="inline-block w-2 h-2.5 bg-red-500 rounded-[1px]" />
+                                            <span className="text-[10px] font-mono text-red-400">{p.redCards}</span>
+                                          </span>
+                                        )}
+                                        <span className={`font-mono text-[10px] tabular-nums px-1.5 py-0.5 rounded-sm ${
+                                          pm > 0 ? 'bg-neon/15 text-neon' :
+                                          pm < 0 ? 'bg-red-500/15 text-red-400' :
+                                          'bg-white/5 text-white/50'
+                                        }`} title="Diferencial em campo">
+                                          {pm > 0 ? '+' : ''}{pm}
+                                        </span>
+                                        <span className="font-mono text-sm text-neon tabular-nums shrink-0">
+                                          {formatTime(p.totalTime)}
+                                        </span>
+                                      </div>
+
+                                      {/* Parciais (stints) */}
+                                      {stints.length > 0 && (
+                                        <div className="mt-2 ml-10 flex flex-wrap gap-1.5">
+                                          {stints.map((s, idx) => {
+                                            const isOpen = s.outHalf === null;
+                                            const dur = s.duration || 0;
+                                            return (
+                                              <span
+                                                key={idx}
+                                                className="inline-flex items-center gap-1.5 text-[10px] bg-black/40 border border-white/5 rounded-sm px-2 py-1"
+                                                title={`Parcial ${idx + 1}`}
+                                              >
+                                                <span className="text-white/40 tracking-label uppercase">P{idx + 1}</span>
+                                                <span className="font-mono text-white/70">
+                                                  {s.inHalf}.ª {formatTime(s.inMinute)}
+                                                </span>
+                                                <span className="text-white/30">→</span>
+                                                <span className="font-mono text-white/70">
+                                                  {isOpen ? '—' : `${s.outHalf}.ª ${formatTime(s.outMinute)}`}
+                                                </span>
+                                                <span className="font-mono text-neon">
+                                                  {formatTime(dur)}
+                                                </span>
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
                                       )}
-                                      <span className={`font-mono text-[10px] tabular-nums px-1.5 py-0.5 rounded-sm ${
-                                        pm > 0 ? 'bg-neon/15 text-neon' :
-                                        pm < 0 ? 'bg-red-500/15 text-red-400' :
-                                        'bg-white/5 text-white/50'
-                                      }`} title="Diferencial em campo">
-                                        {pm > 0 ? '+' : ''}{pm}
-                                      </span>
-                                      <span className="font-mono text-sm text-neon tabular-nums">
-                                        {formatTime(p.totalTime)}
-                                      </span>
+                                      {stints.length === 0 && (
+                                        <div className="mt-1 ml-10 text-[10px] text-white/30 italic">Sem participação</div>
+                                      )}
                                     </div>
                                   );
                                 })}
