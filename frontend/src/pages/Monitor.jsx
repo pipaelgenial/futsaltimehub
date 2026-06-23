@@ -303,8 +303,9 @@ function LiveMatch({ team, match, onEnd }) {
   const foulsSuffered = fouls.filter((f) => f.type === 'suffered').length;
   const yellowCards = cards.filter((c) => c.type === 'yellow').length;
   const redCards = cards.filter((c) => c.type === 'red').length;
-  // Per-half team fouls (relevant for futsal accumulated fouls rule)
+  // Per-half team fouls (reset each half - in futsal accumulated fouls reset)
   const foulsCommittedThisHalf = fouls.filter((f) => f.type === 'committed' && f.half === half).length;
+  const foulsSufferedThisHalf = fouls.filter((f) => f.type === 'suffered' && f.half === half).length;
 
   // Persist on state change
   useEffect(() => {
@@ -739,8 +740,9 @@ function LiveMatch({ team, match, onEnd }) {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <DisciplineTile
               label="Faltas Marcadas"
-              hint={`Cometidas · ${foulsCommittedThisHalf}/5 nesta parte`}
-              value={foulsCommitted}
+              hint={`Esta parte · Total: ${foulsCommitted}`}
+              value={foulsCommittedThisHalf}
+              suffix="/5"
               warn={foulsCommittedThisHalf >= 5}
               color="orange"
               onAdd={openFoulCommitterPicker}
@@ -748,15 +750,15 @@ function LiveMatch({ team, match, onEnd }) {
             />
             <DisciplineTile
               label="Faltas Sofridas"
-              hint="A favor da nossa equipa"
-              value={foulsSuffered}
+              hint={`Esta parte · Total: ${foulsSuffered}`}
+              value={foulsSufferedThisHalf}
               color="blue"
               onAdd={() => !ended && recordFoul('suffered')}
               disabled={ended}
             />
             <DisciplineTile
               label="Cartões Amarelos"
-              hint="Advertências"
+              hint="Advertências (jogo)"
               value={yellowCards}
               color="yellow"
               onAdd={() => openCardPicker('yellow')}
@@ -764,7 +766,7 @@ function LiveMatch({ team, match, onEnd }) {
             />
             <DisciplineTile
               label="Cartões Vermelhos"
-              hint="Expulsões"
+              hint="Expulsões (jogo)"
               value={redCards}
               color="red"
               onAdd={() => openCardPicker('red')}
@@ -1267,7 +1269,7 @@ function Stat({ icon: Icon, label, value, suffix, large }) {
   );
 }
 
-function DisciplineTile({ label, hint, value, color, onAdd, disabled, warn }) {
+function DisciplineTile({ label, hint, value, suffix, color, onAdd, disabled, warn }) {
   const colors = {
     orange: { ring: 'border-orange-500/30', bg: 'bg-orange-500/10', text: 'text-orange-300', btn: 'bg-orange-400/20 border-orange-400/40 text-orange-300 hover:bg-orange-400/30' },
     blue:   { ring: 'border-blue-500/30',   bg: 'bg-blue-500/10',   text: 'text-blue-300',   btn: 'bg-blue-400/15 border-blue-400/40 text-blue-300 hover:bg-blue-400/25' },
@@ -1286,6 +1288,7 @@ function DisciplineTile({ label, hint, value, color, onAdd, disabled, warn }) {
         </div>
         <div className={`font-display text-3xl tabular-nums ${warn ? 'text-red-400' : 'text-white'}`}>
           {value}
+          {suffix && <span className="text-white/30 text-base ml-0.5">{suffix}</span>}
         </div>
       </div>
       <button
