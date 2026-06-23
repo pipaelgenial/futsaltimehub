@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Play, Pause, RotateCcw, ArrowLeftRight, History, ChevronRight,
   Timer as TimerIcon, Users, Trophy, X, ArrowRight, ArrowLeft, Save,
-  Plus, Check, AlertTriangle,
+  Plus, Check, AlertTriangle, Square,
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
@@ -285,7 +285,10 @@ function LiveMatch({ team, match, onEnd }) {
   const [players, setPlayers] = useState(match.players);
   const [subs, setSubs] = useState(match.subs);
   const [goals, setGoals] = useState(match.goals || []);
-  const [pendingGoalType, setPendingGoalType] = useState(null); // 'home' opens scorer picker
+  const [fouls, setFouls] = useState(match.fouls || []);
+  const [cards, setCards] = useState(match.cards || []);
+  // pendingPicker = { title, subtitle, onPick, allowNone, accent } | null
+  const [pendingPicker, setPendingPicker] = useState(null);
   const [half, setHalf] = useState(match.half);
   const [elapsedHalf, setElapsedHalf] = useState(match.elapsedHalf);
   const [running, setRunning] = useState(false);
@@ -296,11 +299,17 @@ function LiveMatch({ team, match, onEnd }) {
 
   const homeScore = goals.filter((g) => g.type === 'home').length;
   const awayScore = goals.filter((g) => g.type === 'away').length;
+  const foulsCommitted = fouls.filter((f) => f.type === 'committed').length;
+  const foulsSuffered = fouls.filter((f) => f.type === 'suffered').length;
+  const yellowCards = cards.filter((c) => c.type === 'yellow').length;
+  const redCards = cards.filter((c) => c.type === 'red').length;
+  // Per-half team fouls (relevant for futsal accumulated fouls rule)
+  const foulsCommittedThisHalf = fouls.filter((f) => f.type === 'committed' && f.half === half).length;
 
   // Persist on state change
   useEffect(() => {
-    setActiveMatch({ ...match, players, subs, goals, half, elapsedHalf, ended });
-  }, [players, subs, goals, half, elapsedHalf, ended]); // eslint-disable-line
+    setActiveMatch({ ...match, players, subs, goals, fouls, cards, half, elapsedHalf, ended });
+  }, [players, subs, goals, fouls, cards, half, elapsedHalf, ended]); // eslint-disable-line
 
   // Tick
   useEffect(() => {
@@ -381,10 +390,9 @@ function LiveMatch({ team, match, onEnd }) {
     if (!ended) {
       if (!window.confirm('O jogo não terminou. Gravar mesmo assim?')) return;
     }
-    // Compute +/- per player from goals
+    // Compute +/- and discipline per player from goals/fouls/cards
     const playerStats = players.map((p) => {
-      let gf = 0; // golos a favor com este jogador em campo
-      let gc = 0; // golos sofridos com este jogador em campo
+      let gf = 0, gc = 0;
       goals.forEach((g) => {
         if (g.playersOnCourt && g.playersOnCourt.includes(p.id)) {
           if (g.type === 'home') gf += 1;
@@ -396,6 +404,9 @@ function LiveMatch({ team, match, onEnd }) {
         totalTime: p.totalTime, stintsCount: p.stintsCount,
         goalsFor: gf, goalsAgainst: gc, plusMinus: gf - gc,
         scored: goals.filter((g) => g.scorerId === p.id).length,
+        foulsCommitted: fouls.filter((f) => f.playerId === p.id && f.type === 'committed').length,
+        yellowCards: cards.filter((c) => c.playerId === p.id && c.type === 'yellow').length,
+        redCards: cards.filter((c) => c.playerId === p.id && c.type === 'red').length,
       };
     });
 
@@ -409,8 +420,14 @@ function LiveMatch({ team, match, onEnd }) {
       players: playerStats,
       subs,
       goals,
+      fouls,
+      cards,
       homeScore,
       awayScore,
+      foulsCommitted,
+      foulsSuffered,
+      yellowCards,
+      redCards,
       totalDuration: totalMatchTime,
       halfReached: half,
       teamName: team.name,
@@ -433,7 +450,7 @@ function LiveMatch({ team, match, onEnd }) {
       playersOnCourt: courtIds,
     };
     setGoals((gs) => [goal, ...gs]);
-    setPendingGoalType(null);
+    setPendingPicker(null);
     if (type === 'home') {
       toast.success('GOLO ' + team.name, {
         description: scorer ? `${scorer.number} ${scorer.name.toUpperCase()}` : 'Sem marcador',
@@ -448,6 +465,123 @@ function LiveMatch({ team, match, onEnd }) {
     if (!window.confirm('Anular o último golo registado?')) return;
     setGoals((gs) => gs.slice(1));
     toast.message('GOLO ANULADO');
+  };
+
+  const recordFoul = (type, committer = null) => {
+    const courtIds = players.filter((p) => p.onCourt).map((p) => p.id);
+    const foul = {
+      id: Date.now() + Math.random(),
+      type, // 'committed' | 'suffered'
+      minute: elapsedHalf,
+      half,
+      playerId: committer ? committer.id : null,
+      playerName: committer ? committer.name : null,
+      playerNumber: committer ? committer.number : null,
+      playersOnCourt: courtIds,
+    };
+    setFouls((fs) => [foul, ...fs]);
+    setPendingPicker(null);
+    if (type === 'committed') {
+      toast.message('FALTA MARCADA', {
+        description: committer ? `${committer.number} ${committer.name.toUpperCase()}` : 'Sem autor',
+      });
+    } else {
+      toast.message('FALTA SOFRIDA', { description: 'A favor de ' + team.name });
+    }
+  };
+
+  const undoLastFoul = () => {
+    if (fouls.length === 0) return;
+    if (!window.confirm('Anular a última falta registada?')) return;
+    setFouls((fs) => fs.slice(1));
+    toast.message('FALTA ANULADA');
+  };
+
+  const recordCard = (type, player) => {
+    if (!player) return;
+    const card = {
+      id: Date.now() + Math.random(),
+      type, // 'yellow' | 'red'
+      minute: elapsedHalf,
+      half,
+      playerId: player.id,
+      playerName: player.name,
+      playerNumber: player.number,
+    };
+    setCards((cs) => [card, ...cs]);
+    setPendingPicker(null);
+    if (type === 'red') {
+      // On red card, send player to bench (out of game) - keep in roster but not on court
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === player.id && p.onCourt
+            ? { ...p, onCourt: false, lastStintTime: p.currentStint, currentStint: 0, sentOff: true }
+            : p
+        )
+      );
+      toast.error('CARTÃO VERMELHO', {
+        description: `${player.number} ${player.name.toUpperCase()} \u2014 Expulso`,
+      });
+    } else {
+      toast.message('CARTÃO AMARELO', {
+        description: `${player.number} ${player.name.toUpperCase()}`,
+      });
+    }
+  };
+
+  const undoLastCard = () => {
+    if (cards.length === 0) return;
+    if (!window.confirm('Anular o último cartão registado?')) return;
+    setCards((cs) => cs.slice(1));
+    toast.message('CARTÃO ANULADO');
+  };
+
+  // Picker openers
+  const openGoalScorerPicker = () => {
+    if (ended || onCourtPlayers.length === 0) return;
+    setPendingPicker({
+      kind: 'goal',
+      title: 'Quem marcou?',
+      subtitle: 'Seleciona o autor do golo (apenas jogadores em campo).',
+      players: onCourtPlayers,
+      allowNone: true,
+      accent: 'neon',
+      onPick: (p) => recordGoal('home', p),
+    });
+  };
+
+  const openFoulCommitterPicker = () => {
+    if (ended || onCourtPlayers.length === 0) return;
+    setPendingPicker({
+      kind: 'foul',
+      title: 'Falta marcada por',
+      subtitle: 'Quem cometeu a falta? (jogadores em campo)',
+      players: onCourtPlayers,
+      allowNone: true,
+      accent: 'orange',
+      onPick: (p) => recordFoul('committed', p),
+    });
+  };
+
+  const openCardPicker = (cardType) => {
+    if (ended) return;
+    // Cards usually go to court players, but bench players can also get them
+    const eligible = players.filter((p) => p.onCourt);
+    if (eligible.length === 0) {
+      toast.error('SEM JOGADORES EM CAMPO');
+      return;
+    }
+    setPendingPicker({
+      kind: cardType === 'yellow' ? 'yellow' : 'red',
+      title: cardType === 'yellow' ? 'Cartão Amarelo para' : 'Cartão Vermelho para',
+      subtitle: cardType === 'red'
+        ? 'Jogador será expulso e enviado para fora.'
+        : 'Seleciona o jogador advertido.',
+      players: eligible,
+      allowNone: false,
+      accent: cardType === 'yellow' ? 'yellow' : 'red',
+      onPick: (p) => recordCard(cardType, p),
+    });
   };
 
   const performSubstitution = (outId, inId) => {
@@ -541,7 +675,7 @@ function LiveMatch({ team, match, onEnd }) {
               <div className="text-[10px] tracking-label uppercase text-neon mb-1">Casa</div>
               <div className="font-display text-xl lg:text-2xl uppercase truncate">{team.name}</div>
               <button
-                onClick={() => !ended && setPendingGoalType('home')}
+                onClick={openGoalScorerPicker}
                 disabled={ended || onCourtPlayers.length === 0}
                 className="mt-2 inline-flex items-center gap-2 bg-neon text-black font-display text-sm uppercase tracking-wider px-4 py-2 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -580,6 +714,62 @@ function LiveMatch({ team, match, onEnd }) {
                 <Plus size={14} /> Golo Adversário
               </button>
             </div>
+          </div>
+        </section>
+
+        {/* Disciplina panel */}
+        <section className="mb-6 border border-white/10 bg-[#0f0f0f] rounded-sm p-4 lg:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] tracking-label uppercase text-neon">Disciplina · Faltas & Cartões</div>
+            {(fouls.length > 0 || cards.length > 0) && !ended && (
+              <div className="flex gap-3 text-[10px] tracking-label uppercase">
+                {fouls.length > 0 && (
+                  <button onClick={undoLastFoul} className="text-white/45 hover:text-orange-400 transition-colors">
+                    ↶ Anular Falta
+                  </button>
+                )}
+                {cards.length > 0 && (
+                  <button onClick={undoLastCard} className="text-white/45 hover:text-red-400 transition-colors">
+                    ↶ Anular Cartão
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <DisciplineTile
+              label="Faltas Marcadas"
+              hint={`Cometidas · ${foulsCommittedThisHalf}/5 nesta parte`}
+              value={foulsCommitted}
+              warn={foulsCommittedThisHalf >= 5}
+              color="orange"
+              onAdd={openFoulCommitterPicker}
+              disabled={ended || onCourtPlayers.length === 0}
+            />
+            <DisciplineTile
+              label="Faltas Sofridas"
+              hint="A favor da nossa equipa"
+              value={foulsSuffered}
+              color="blue"
+              onAdd={() => !ended && recordFoul('suffered')}
+              disabled={ended}
+            />
+            <DisciplineTile
+              label="Cartões Amarelos"
+              hint="Advertências"
+              value={yellowCards}
+              color="yellow"
+              onAdd={() => openCardPicker('yellow')}
+              disabled={ended || onCourtPlayers.length === 0}
+            />
+            <DisciplineTile
+              label="Cartões Vermelhos"
+              hint="Expulsões"
+              value={redCards}
+              color="red"
+              onAdd={() => openCardPicker('red')}
+              disabled={ended || onCourtPlayers.length === 0}
+            />
           </div>
         </section>
 
@@ -802,6 +992,103 @@ function LiveMatch({ team, match, onEnd }) {
           )}
         </section>
 
+        {/* Fouls log */}
+        {fouls.length > 0 && (
+          <section className="mt-8">
+            <SectionHeader title="Histórico de Faltas" count={fouls.length} icon={AlertTriangle} />
+            <div className="border border-white/10 rounded-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-[#0f0f0f] text-[10px] tracking-label uppercase text-white/50">
+                  <tr>
+                    <th className="text-left px-4 py-3 w-16">#</th>
+                    <th className="text-left px-4 py-3 w-24">Parte</th>
+                    <th className="text-left px-4 py-3 w-28">Minuto</th>
+                    <th className="text-left px-4 py-3 w-32">Tipo</th>
+                    <th className="text-left px-4 py-3">Autor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fouls.map((f, i) => (
+                    <tr key={f.id} className="border-t border-white/5 bg-[#0a0a0a] hover:bg-[#111]">
+                      <td className="px-4 py-3 font-mono text-orange-400">#{fouls.length - i}</td>
+                      <td className="px-4 py-3 text-white/70">{f.half}.ª</td>
+                      <td className="px-4 py-3 font-mono">{formatTime(f.minute)}</td>
+                      <td className="px-4 py-3">
+                        {f.type === 'committed' ? (
+                          <span className="text-orange-400 uppercase tracking-wide font-semibold">Marcada</span>
+                        ) : (
+                          <span className="text-blue-300 uppercase tracking-wide font-semibold">Sofrida</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {f.playerName ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="w-7 h-7 bg-orange-500/20 text-orange-300 rounded-sm flex items-center justify-center text-xs font-mono">
+                              {f.playerNumber}
+                            </span>
+                            {f.playerName}
+                          </span>
+                        ) : (
+                          <span className="text-white/45 italic">
+                            {f.type === 'committed' ? 'Sem autor' : 'A favor da equipa'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {/* Cards log */}
+        {cards.length > 0 && (
+          <section className="mt-8">
+            <SectionHeader title="Histórico de Cartões" count={cards.length} icon={Square} />
+            <div className="border border-white/10 rounded-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-[#0f0f0f] text-[10px] tracking-label uppercase text-white/50">
+                  <tr>
+                    <th className="text-left px-4 py-3 w-16">#</th>
+                    <th className="text-left px-4 py-3 w-24">Parte</th>
+                    <th className="text-left px-4 py-3 w-28">Minuto</th>
+                    <th className="text-left px-4 py-3 w-32">Cartão</th>
+                    <th className="text-left px-4 py-3">Jogador</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cards.map((c, i) => (
+                    <tr key={c.id} className="border-t border-white/5 bg-[#0a0a0a] hover:bg-[#111]">
+                      <td className="px-4 py-3 font-mono text-white/60">#{cards.length - i}</td>
+                      <td className="px-4 py-3 text-white/70">{c.half}.ª</td>
+                      <td className="px-4 py-3 font-mono">{formatTime(c.minute)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block w-5 h-7 rounded-sm align-middle mr-2 ${
+                          c.type === 'red' ? 'bg-red-500' : 'bg-yellow-400'
+                        }`} />
+                        <span className={`uppercase tracking-wide font-semibold ${
+                          c.type === 'red' ? 'text-red-400' : 'text-yellow-300'
+                        }`}>
+                          {c.type === 'red' ? 'Vermelho' : 'Amarelo'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="w-7 h-7 bg-white/10 text-white rounded-sm flex items-center justify-center text-xs font-mono">
+                            {c.playerNumber}
+                          </span>
+                          {c.playerName}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
         {/* Subs log */}
         <section className="mt-8">
           <SectionHeader title="Histórico de Substituições" count={subs.length} icon={History} />
@@ -856,28 +1143,36 @@ function LiveMatch({ team, match, onEnd }) {
         </section>
       </main>
 
-      {/* Scorer picker modal */}
-      {pendingGoalType === 'home' && (
+      {/* Generic player picker modal */}
+      {pendingPicker && (
         <div
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-5 fade-up"
-          onClick={() => setPendingGoalType(null)}
+          onClick={() => setPendingPicker(null)}
         >
           <div
-            className="bg-[#0f0f0f] border border-neon/40 rounded-sm w-full max-w-lg p-5 lg:p-6"
+            className={`bg-[#0f0f0f] border rounded-sm w-full max-w-lg p-5 lg:p-6 ${
+              pendingPicker.accent === 'red' ? 'border-red-500/40' :
+              pendingPicker.accent === 'yellow' ? 'border-yellow-400/40' :
+              pendingPicker.accent === 'orange' ? 'border-orange-400/40' :
+              'border-neon/40'
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between mb-5">
               <div>
-                <div className="text-[10px] tracking-label uppercase text-neon mb-1">
+                <div className={`text-[10px] tracking-label uppercase mb-1 ${
+                  pendingPicker.accent === 'red' ? 'text-red-400' :
+                  pendingPicker.accent === 'yellow' ? 'text-yellow-300' :
+                  pendingPicker.accent === 'orange' ? 'text-orange-400' :
+                  'text-neon'
+                }`}>
                   {half}.ª Parte · {formatTime(elapsedHalf)}
                 </div>
-                <h3 className="font-display text-2xl uppercase">Quem marcou?</h3>
-                <div className="text-xs text-white/55 mt-1">
-                  Seleciona o autor do golo (apenas jogadores em campo).
-                </div>
+                <h3 className="font-display text-2xl uppercase">{pendingPicker.title}</h3>
+                <div className="text-xs text-white/55 mt-1">{pendingPicker.subtitle}</div>
               </div>
               <button
-                onClick={() => setPendingGoalType(null)}
+                onClick={() => setPendingPicker(null)}
                 className="text-white/60 hover:text-red-400 transition-colors"
               >
                 <X size={20} />
@@ -885,11 +1180,19 @@ function LiveMatch({ team, match, onEnd }) {
             </div>
 
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-              {onCourtPlayers.map((p) => (
+              {pendingPicker.players.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => recordGoal('home', p)}
-                  className="w-full flex items-center gap-3 p-3 border border-white/10 bg-[#0a0a0a] rounded-sm hover:border-neon hover:bg-[#161b05] transition-all text-left"
+                  onClick={() => pendingPicker.onPick(p)}
+                  className={`w-full flex items-center gap-3 p-3 border rounded-sm transition-all text-left ${
+                    pendingPicker.accent === 'red'
+                      ? 'border-white/10 bg-[#0a0a0a] hover:border-red-500 hover:bg-red-500/5'
+                      : pendingPicker.accent === 'yellow'
+                      ? 'border-white/10 bg-[#0a0a0a] hover:border-yellow-400 hover:bg-yellow-400/5'
+                      : pendingPicker.accent === 'orange'
+                      ? 'border-white/10 bg-[#0a0a0a] hover:border-orange-400 hover:bg-orange-400/5'
+                      : 'border-white/10 bg-[#0a0a0a] hover:border-neon hover:bg-[#161b05]'
+                  }`}
                 >
                   <span className="w-11 h-11 bg-neon text-black rounded-sm flex items-center justify-center font-display text-xl tabular-nums">
                     {p.number}
@@ -902,17 +1205,24 @@ function LiveMatch({ team, match, onEnd }) {
                       {p.position}
                     </div>
                   </span>
-                  <Check size={18} className="text-neon" />
+                  <Check size={18} className={
+                    pendingPicker.accent === 'red' ? 'text-red-400' :
+                    pendingPicker.accent === 'yellow' ? 'text-yellow-300' :
+                    pendingPicker.accent === 'orange' ? 'text-orange-400' :
+                    'text-neon'
+                  } />
                 </button>
               ))}
             </div>
 
-            <button
-              onClick={() => recordGoal('home', null)}
-              className="w-full mt-4 text-xs uppercase tracking-label text-white/55 hover:text-neon py-2 transition-colors"
-            >
-              Sem marcador identificado
-            </button>
+            {pendingPicker.allowNone && (
+              <button
+                onClick={() => pendingPicker.onPick(null)}
+                className="w-full mt-4 text-xs uppercase tracking-label text-white/55 hover:text-neon py-2 transition-colors"
+              >
+                Sem jogador identificado
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -953,6 +1263,38 @@ function Stat({ icon: Icon, label, value, suffix, large }) {
         {value}
         {suffix && <span className="text-white/30 text-base ml-1">{suffix}</span>}
       </div>
+    </div>
+  );
+}
+
+function DisciplineTile({ label, hint, value, color, onAdd, disabled, warn }) {
+  const colors = {
+    orange: { ring: 'border-orange-500/30', bg: 'bg-orange-500/10', text: 'text-orange-300', btn: 'bg-orange-400/20 border-orange-400/40 text-orange-300 hover:bg-orange-400/30' },
+    blue:   { ring: 'border-blue-500/30',   bg: 'bg-blue-500/10',   text: 'text-blue-300',   btn: 'bg-blue-400/15 border-blue-400/40 text-blue-300 hover:bg-blue-400/25' },
+    yellow: { ring: 'border-yellow-400/30', bg: 'bg-yellow-400/10', text: 'text-yellow-300', btn: 'bg-yellow-400/15 border-yellow-400/40 text-yellow-300 hover:bg-yellow-400/25' },
+    red:    { ring: 'border-red-500/30',    bg: 'bg-red-500/10',    text: 'text-red-300',    btn: 'bg-red-500/15 border-red-500/40 text-red-300 hover:bg-red-500/25' },
+  };
+  const c = colors[color] || colors.orange;
+  return (
+    <div className={`border ${c.ring} ${c.bg} rounded-sm p-3 flex flex-col gap-2`}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className={`text-[10px] tracking-label uppercase ${c.text}`}>{label}</div>
+          <div className={`text-[9px] uppercase tracking-wide mt-0.5 ${warn ? 'text-red-400 font-semibold' : 'text-white/45'}`}>
+            {hint}
+          </div>
+        </div>
+        <div className={`font-display text-3xl tabular-nums ${warn ? 'text-red-400' : 'text-white'}`}>
+          {value}
+        </div>
+      </div>
+      <button
+        onClick={onAdd}
+        disabled={disabled}
+        className={`mt-auto inline-flex items-center justify-center gap-1.5 border font-display text-xs uppercase tracking-wider px-3 py-2 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${c.btn}`}
+      >
+        <Plus size={12} /> Adicionar
+      </button>
     </div>
   );
 }

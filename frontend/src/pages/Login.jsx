@@ -51,7 +51,7 @@ export default function Login() {
               <span className="text-neon">Domina</span> o jogo.
             </h1>
             <p className="text-sm text-white/65 mt-5 max-w-md leading-relaxed">
-              Tempos individuais, parciais e substituições em tempo real para a tua equipa de futsal.
+              Tempos individuais, parciais, substituições em tempo real e outras estatísticas para a tua equipa de futsal.
             </p>
           </div>
         </div>

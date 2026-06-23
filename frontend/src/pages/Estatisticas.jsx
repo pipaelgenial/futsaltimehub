@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight } from 'lucide-react';
+import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { getMatches, deleteMatch, getTeam } from '../lib/storage';
@@ -21,12 +21,16 @@ export default function Estatisticas() {
           stats[p.id] = {
             id: p.id, name: p.name, number: p.number, position: p.position,
             totalTime: 0, games: 0, scored: 0, goalsFor: 0, goalsAgainst: 0,
+            foulsCommitted: 0, yellowCards: 0, redCards: 0,
           };
         }
         stats[p.id].totalTime += p.totalTime || 0;
         stats[p.id].scored += p.scored || 0;
         stats[p.id].goalsFor += p.goalsFor || 0;
         stats[p.id].goalsAgainst += p.goalsAgainst || 0;
+        stats[p.id].foulsCommitted += p.foulsCommitted || 0;
+        stats[p.id].yellowCards += p.yellowCards || 0;
+        stats[p.id].redCards += p.redCards || 0;
         if ((p.totalTime || 0) > 0) stats[p.id].games += 1;
       });
     });
@@ -113,6 +117,9 @@ export default function Estatisticas() {
                       <th className="text-right px-4 py-3 w-20" title="Golos a favor enquanto em campo">GF</th>
                       <th className="text-right px-4 py-3 w-20" title="Golos sofridos enquanto em campo">GS</th>
                       <th className="text-right px-4 py-3 w-20" title="Diferencial (+/-)">+/-</th>
+                      <th className="text-right px-4 py-3 w-16" title="Faltas cometidas">F</th>
+                      <th className="text-right px-4 py-3 w-16" title="Cartões amarelos">CA</th>
+                      <th className="text-right px-4 py-3 w-16" title="Cartões vermelhos">CV</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -137,13 +144,32 @@ export default function Estatisticas() {
                         }`}>
                           {a.plusMinus > 0 ? '+' : ''}{a.plusMinus}
                         </td>
+                        <td className="px-4 py-3 text-right font-mono">
+                          {a.foulsCommitted > 0 ? <span className="text-orange-400">{a.foulsCommitted}</span> : <span className="text-white/30">0</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {a.yellowCards > 0 ? (
+                            <span className="inline-flex items-center gap-1 font-mono text-yellow-300">
+                              <span className="inline-block w-2.5 h-3.5 bg-yellow-400 rounded-[1px]" />
+                              {a.yellowCards}
+                            </span>
+                          ) : <span className="text-white/30 font-mono">0</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {a.redCards > 0 ? (
+                            <span className="inline-flex items-center gap-1 font-mono text-red-400">
+                              <span className="inline-block w-2.5 h-3.5 bg-red-500 rounded-[1px]" />
+                              {a.redCards}
+                            </span>
+                          ) : <span className="text-white/30 font-mono">0</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <div className="text-[10px] tracking-label uppercase text-white/40 mt-2">
-                G = golos marcados · GF = golos a favor em campo · GS = golos sofridos em campo · +/- = diferencial
+                G = golos · GF/GS = golos a favor/sofridos em campo · +/- = diferencial · F = faltas · CA/CV = cartões
               </div>
             </section>
 
@@ -196,7 +222,7 @@ export default function Estatisticas() {
                             {new Date(m.date).toLocaleDateString('pt-PT', {
                               day: '2-digit', month: '2-digit', year: 'numeric',
                             })}{' '}
-                            · {m.players.length} atletas · {(m.goals || []).length} golos · {m.subs.length} substituições
+                            · {m.players.length} atletas · {(m.goals || []).length} golos · {(m.fouls || []).length} faltas · {(m.cards || []).length} cartões · {m.subs.length} substituições
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
@@ -258,6 +284,69 @@ export default function Estatisticas() {
                                         <span className="flex-1 text-white/40 italic">Golo Adversário</span>
                                       </>
                                     )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Fouls summary */}
+                          {((m.fouls || []).length > 0 || (typeof m.foulsCommitted === 'number' && m.foulsCommitted > 0)) && (
+                            <div>
+                              <div className="text-[10px] tracking-label uppercase text-orange-400 mb-2 flex items-center gap-2">
+                                <AlertTriangle size={12} /> Faltas — Marcadas: {m.foulsCommitted ?? 0} · Sofridas: {m.foulsSuffered ?? 0}
+                              </div>
+                              {(m.fouls || []).length > 0 && (
+                                <div className="space-y-1">
+                                  {[...(m.fouls || [])].reverse().map((f) => (
+                                    <div key={f.id} className="text-xs flex items-center gap-3">
+                                      <span className="font-mono text-white/50 w-16">{f.half}.ª {formatTime(f.minute)}</span>
+                                      {f.type === 'committed' ? (
+                                        <span className="text-orange-400 uppercase font-semibold w-20">Marcada</span>
+                                      ) : (
+                                        <span className="text-blue-300 uppercase font-semibold w-20">Sofrida</span>
+                                      )}
+                                      <span className="flex-1">
+                                        {f.playerName ? (
+                                          <span className="inline-flex items-center gap-2">
+                                            <span className="w-5 h-5 bg-orange-500/20 text-orange-300 rounded-sm flex items-center justify-center text-[10px] font-mono">
+                                              {f.playerNumber}
+                                            </span>
+                                            {f.playerName}
+                                          </span>
+                                        ) : (
+                                          <span className="text-white/40 italic">
+                                            {f.type === 'committed' ? 'Sem autor' : 'A favor da equipa'}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Cards summary */}
+                          {(m.cards || []).length > 0 && (
+                            <div>
+                              <div className="text-[10px] tracking-label uppercase text-white/55 mb-2 flex items-center gap-2">
+                                <Square size={12} /> Cartões — Amarelos: <span className="text-yellow-300">{m.yellowCards ?? 0}</span> · Vermelhos: <span className="text-red-400">{m.redCards ?? 0}</span>
+                              </div>
+                              <div className="space-y-1">
+                                {[...m.cards].reverse().map((c) => (
+                                  <div key={c.id} className="text-xs flex items-center gap-3">
+                                    <span className="font-mono text-white/50 w-16">{c.half}.ª {formatTime(c.minute)}</span>
+                                    <span className={`inline-block w-3 h-4 rounded-[1px] ${c.type === 'red' ? 'bg-red-500' : 'bg-yellow-400'}`} />
+                                    <span className={`uppercase font-semibold w-20 ${c.type === 'red' ? 'text-red-400' : 'text-yellow-300'}`}>
+                                      {c.type === 'red' ? 'Vermelho' : 'Amarelo'}
+                                    </span>
+                                    <span className="inline-flex items-center gap-2 flex-1">
+                                      <span className="w-5 h-5 bg-white/10 rounded-sm flex items-center justify-center text-[10px] font-mono">
+                                        {c.playerNumber}
+                                      </span>
+                                      {c.playerName}
+                                    </span>
                                   </div>
                                 ))}
                               </div>
