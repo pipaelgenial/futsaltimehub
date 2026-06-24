@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { toast } from 'sonner';
-import { setUser, getTeam } from '../lib/storage';
+import { setUser, getTeam, authenticate } from '../lib/storage';
 
 const HERO_IMG = 'https://images.unsplash.com/photo-1630420598913-44208d36f9af?auto=format&fit=crop&w=1600&q=80';
 
@@ -18,10 +18,22 @@ export default function Login() {
       toast.error('PREENCHA TODOS OS CAMPOS');
       return;
     }
-    setUser({ email, name: email.split('@')[0] });
+    const result = authenticate(email, password);
+    if (!result.ok) {
+      toast.error(result.error.toUpperCase());
+      return;
+    }
+    const { user } = result;
+    setUser({ id: user.id, email: user.email, name: user.name, isAdmin: user.isAdmin });
     toast.success('SESSÃO INICIADA');
-    const hasTeam = !!getTeam();
-    setTimeout(() => navigate(hasTeam ? '/dashboard' : '/team-setup'), 400);
+    setTimeout(() => {
+      if (user.isAdmin) {
+        navigate('/admin');
+      } else {
+        const hasTeam = !!getTeam();
+        navigate(hasTeam ? '/dashboard' : '/team-setup');
+      }
+    }, 400);
   };
 
   return (

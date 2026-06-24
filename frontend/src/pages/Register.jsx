@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { toast } from 'sonner';
+import { registerUser } from '../lib/storage';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -14,8 +15,13 @@ export default function Register() {
       toast.error('VERIFICA OS DADOS (PASSWORD MÍN. 6)');
       return;
     }
+    const result = registerUser({ name: form.name, email: form.email, password: form.password });
+    if (!result.ok) {
+      toast.error(result.error.toUpperCase());
+      return;
+    }
     toast.success('CONTA CRIADA — AGUARDA VALIDAÇÃO');
-    setTimeout(() => navigate('/'), 600);
+    setTimeout(() => navigate('/'), 800);
   };
 
   return (

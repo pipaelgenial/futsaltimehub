@@ -9,11 +9,14 @@ import Dashboard from './pages/Dashboard';
 import Monitor from './pages/Monitor';
 import Plantel from './pages/Plantel';
 import Estatisticas from './pages/Estatisticas';
+import Admin from './pages/Admin';
 import { Toaster } from './components/ui/sonner';
+import { initDefaultAdmin } from './lib/storage';
 
 function App() {
   useEffect(() => {
     document.title = 'Futsal Time Hub';
+    initDefaultAdmin();
   }, []);
 
   return (
@@ -28,6 +31,7 @@ function App() {
           <Route path="/monitor" element={<Monitor />} />
           <Route path="/plantel" element={<Plantel />} />
           <Route path="/estatisticas" element={<Estatisticas />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster theme="dark" position="top-right" />
