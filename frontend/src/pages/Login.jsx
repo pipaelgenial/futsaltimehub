@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { toast } from 'sonner';
-import { setUser, getTeam, authenticate } from '../lib/storage';
+import { apiLogin, apiGetTeam } from '../lib/api';
 
 const HERO_IMG = 'https://images.unsplash.com/photo-1630420598913-44208d36f9af?auto=format&fit=crop&w=1600&q=80';
 
@@ -11,49 +11,42 @@ export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
       toast.error('PREENCHA TODOS OS CAMPOS');
       return;
     }
-    const result = authenticate(email, password);
+    setBusy(true);
+    const result = await apiLogin({ email, password });
     if (!result.ok) {
       toast.error(result.error.toUpperCase());
+      setBusy(false);
       return;
     }
-    const { user } = result;
-    setUser({ id: user.id, email: user.email, name: user.name, isAdmin: user.isAdmin });
     toast.success('SESSÃO INICIADA');
-    setTimeout(() => {
-      if (user.isAdmin) {
-        navigate('/admin');
-      } else {
-        const hasTeam = !!getTeam();
-        navigate(hasTeam ? '/dashboard' : '/team-setup');
-      }
-    }, 400);
+    const user = result.user;
+    if (user.is_admin) {
+      setTimeout(() => navigate('/admin'), 400);
+    } else {
+      const teamRes = await apiGetTeam();
+      setTimeout(() => navigate(teamRes.ok && teamRes.team ? '/dashboard' : '/team-setup'), 400);
+    }
   };
 
   return (
     <div className="min-h-screen w-full bg-black text-white flex flex-col">
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2">
-        {/* LEFT: Hero image with overlay text */}
+        {/* LEFT */}
         <div className="relative min-h-[420px] lg:min-h-screen overflow-hidden">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${HERO_IMG})` }}
-          />
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO_IMG})` }} />
           <div className="absolute inset-0 bg-gradient-to-br from-black/85 via-black/65 to-black/85" />
           <div className="absolute inset-0 bg-black/35" />
-
-          {/* Top-left Logo */}
           <div className="absolute top-8 left-8 z-10">
             <Logo size="md" />
           </div>
-
-          {/* Bottom-left content */}
           <div className="absolute bottom-12 left-8 right-8 lg:right-16 z-10">
             <div className="text-neon text-[11px] tracking-label uppercase mb-4">
               Cronometra · Substitui · Decide
@@ -68,23 +61,17 @@ export default function Login() {
           </div>
         </div>
 
-        {/* RIGHT: Login form */}
+        {/* RIGHT */}
         <div className="flex items-center justify-center px-6 py-12 lg:py-0 bg-[#0a0a0a]">
           <div className="w-full max-w-md fade-up">
             <div className="mb-7">
-              <div className="text-neon text-[11px] tracking-label uppercase mb-3">
-                Acesso Treinador
-              </div>
-              <h2 className="font-display text-4xl lg:text-5xl uppercase leading-none">
-                Iniciar Sessão
-              </h2>
+              <div className="text-neon text-[11px] tracking-label uppercase mb-3">Acesso Treinador</div>
+              <h2 className="font-display text-4xl lg:text-5xl uppercase leading-none">Iniciar Sessão</h2>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">
-                  Email
-                </label>
+                <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Email</label>
                 <input
                   type="email"
                   value={email}
@@ -95,9 +82,7 @@ export default function Login() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">
-                  Password
-                </label>
+                <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Password</label>
                 <input
                   type="password"
                   value={password}
@@ -110,9 +95,10 @@ export default function Login() {
 
               <button
                 type="submit"
-                className="w-full bg-neon text-black font-display text-xl tracking-wider uppercase py-3.5 rounded-sm transition-all hover:bg-[#bbdc0d] active:scale-[0.99]"
+                disabled={busy}
+                className="w-full bg-neon text-black font-display text-xl tracking-wider uppercase py-3.5 rounded-sm transition-all hover:bg-[#bbdc0d] active:scale-[0.99] disabled:opacity-60 disabled:cursor-wait"
               >
-                Entrar
+                {busy ? 'A Entrar...' : 'Entrar'}
               </button>
 
               <div className="text-center pt-1">
@@ -124,15 +110,11 @@ export default function Login() {
 
             <div className="text-sm text-white/60 mt-7">
               Não tem conta?{' '}
-              <Link to="/register" className="text-neon hover:underline">
-                Criar conta
-              </Link>
+              <Link to="/register" className="text-neon hover:underline">Criar conta</Link>
             </div>
 
             <div className="mt-8 border border-white/10 bg-[#0f0f0f] p-4 rounded-sm">
-              <div className="text-[10px] tracking-label uppercase text-neon mb-1">
-                Validação
-              </div>
+              <div className="text-[10px] tracking-label uppercase text-neon mb-1">Validação</div>
               <div className="text-xs text-white/55 leading-relaxed">
                 Novas contas precisam de ser validadas por um administrador antes do primeiro acesso.
               </div>

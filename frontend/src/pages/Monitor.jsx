@@ -3,26 +3,50 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Play, Pause, RotateCcw, ArrowLeftRight, History, ChevronRight,
   Timer as TimerIcon, Users, Trophy, X, ArrowRight, ArrowLeft, Save,
-  Plus, Check, AlertTriangle, Square,
+  Plus, Check, AlertTriangle, Square, Loader2,
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import {
-  getTeam, getRoster, getActiveMatch, setActiveMatch, clearActiveMatch,
-  saveMatch, HALF_DURATION,
-} from '../lib/storage';
+  apiGetTeam, apiListAthletes, apiSaveMatch,
+  getActiveMatch, setActiveMatch, clearActiveMatch, getSessionUser,
+  HALF_DURATION,
+} from '../lib/api';
 import { formatTime, formatTimeLong, formatCountdown } from '../lib/time';
 import { toast } from 'sonner';
 
 export default function Monitor() {
   const navigate = useNavigate();
-  const team = getTeam();
-  const roster = getRoster();
+  const sessionUser = getSessionUser();
+  const [team, setTeam] = useState(null);
+  const [roster, setRoster] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeMatch, setActive] = useState(getActiveMatch());
 
-  if (!team) {
-    navigate('/team-setup');
-    return null;
+  useEffect(() => {
+    if (!sessionUser) {
+      navigate('/');
+      return;
+    }
+    (async () => {
+      const t = await apiGetTeam();
+      if (!t.ok || !t.team) {
+        navigate('/team-setup');
+        return;
+      }
+      setTeam(t.team);
+      const r = await apiListAthletes();
+      if (r.ok) setRoster(r.athletes);
+      setLoading(false);
+    })();
+  }, [navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading || !team) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        <Loader2 className="animate-spin text-neon" size={32} />
+      </div>
+    );
   }
 
   if (!activeMatch) {
@@ -422,7 +446,7 @@ function LiveMatch({ team, match, onEnd }) {
     toast.message('JOGO CANCELADO');
   };
 
-  const saveCurrentMatch = () => {
+  const saveCurrentMatch = async () => {
     if (!ended) {
       if (!window.confirm('O jogo não terminou. Gravar mesmo assim?')) return;
     }
@@ -455,28 +479,33 @@ function LiveMatch({ team, match, onEnd }) {
       };
     });
 
-    saveMatch({
-      id: match.id,
+    const payload = {
       opponent: match.opponent,
-      competition: match.competition,
-      matchday: match.matchday,
-      venue: match.venue,
+      competition: match.competition || '',
+      matchday: match.matchday || '',
+      venue: match.venue || '',
       date: match.date,
+      team_name: team.name,
+      home_score: homeScore,
+      away_score: awayScore,
+      fouls_committed: foulsCommitted,
+      fouls_suffered: foulsSuffered,
+      yellow_cards: yellowCards,
+      red_cards: redCards,
+      total_duration: totalMatchTime,
+      half_reached: half,
       players: playerStats,
       subs,
       goals,
       fouls,
       cards,
-      homeScore,
-      awayScore,
-      foulsCommitted,
-      foulsSuffered,
-      yellowCards,
-      redCards,
-      totalDuration: totalMatchTime,
-      halfReached: half,
-      teamName: team.name,
-    });
+    };
+
+    const res = await apiSaveMatch(payload);
+    if (!res.ok) {
+      toast.error('FALHA AO GRAVAR: ' + res.error.toUpperCase());
+      return;
+    }
     clearActiveMatch();
     toast.success('JOGO GRAVADO', { description: 'A redirecionar para estatísticas...' });
     setTimeout(() => navigate('/estatisticas'), 800);

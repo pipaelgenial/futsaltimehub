@@ -3,25 +3,28 @@ import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { toast } from 'sonner';
-import { registerUser } from '../lib/storage';
+import { apiRegister } from '../lib/api';
 
 export default function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [busy, setBusy] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.email || form.password.length < 6) {
       toast.error('VERIFICA OS DADOS (PASSWORD MÍN. 6)');
       return;
     }
-    const result = registerUser({ name: form.name, email: form.email, password: form.password });
+    setBusy(true);
+    const result = await apiRegister({ name: form.name, email: form.email, password: form.password });
     if (!result.ok) {
       toast.error(result.error.toUpperCase());
+      setBusy(false);
       return;
     }
     toast.success('CONTA CRIADA — AGUARDA VALIDAÇÃO');
-    setTimeout(() => navigate('/'), 800);
+    setTimeout(() => navigate('/'), 900);
   };
 
   return (
@@ -58,9 +61,10 @@ export default function Register() {
 
             <button
               type="submit"
-              className="w-full bg-neon text-black font-display text-xl tracking-wider uppercase py-3.5 rounded-sm transition-all hover:bg-[#bbdc0d] active:scale-[0.99]"
+              disabled={busy}
+              className="w-full bg-neon text-black font-display text-xl tracking-wider uppercase py-3.5 rounded-sm transition-all hover:bg-[#bbdc0d] active:scale-[0.99] disabled:opacity-60"
             >
-              Criar Conta
+              {busy ? 'A Criar...' : 'Criar Conta'}
             </button>
           </form>
 

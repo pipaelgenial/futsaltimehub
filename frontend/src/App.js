@@ -11,12 +11,10 @@ import Plantel from './pages/Plantel';
 import Estatisticas from './pages/Estatisticas';
 import Admin from './pages/Admin';
 import { Toaster } from './components/ui/sonner';
-import { initDefaultAdmin } from './lib/storage';
 
 function App() {
   useEffect(() => {
     document.title = 'Futsal Time Hub';
-    initDefaultAdmin();
   }, []);
 
   return (

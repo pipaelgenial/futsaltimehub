@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { toast } from 'sonner';
-import { setTeam, setRoster } from '../lib/storage';
-import { Shield, Plus } from 'lucide-react';
+import { apiCreateTeam, apiAddAthlete, apiGetTeam, getSessionUser } from '../lib/api';
+import { Shield, Loader2 } from 'lucide-react';
 
-// Optional sample athletes user can choose to seed
 const SAMPLE_ATHLETES = [
   { number: 1, name: 'Guarda-Redes', position: 'GR' },
   { number: 4, name: 'Defesa Fixo', position: 'FIXO' },
@@ -21,6 +20,7 @@ export default function TeamSetup() {
   const [coach, setCoach] = useState('');
   const [colorIdx, setColorIdx] = useState(0);
   const [seedSample, setSeedSample] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const colors = [
     { name: 'Neon', hex: '#d4ff1a' },
@@ -31,19 +31,40 @@ export default function TeamSetup() {
     { name: 'Branco', hex: '#f5f5f5' },
   ];
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    const user = getSessionUser();
+    if (!user) {
+      navigate('/');
+      return;
+    }
+    // If already has team, send to dashboard
+    apiGetTeam().then((r) => {
+      if (r.ok && r.team) navigate('/dashboard');
+    });
+  }, [navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
       toast.error('INSERE O NOME DA EQUIPA');
       return;
     }
-    setTeam({
-      name: name.trim().toUpperCase(),
+    setBusy(true);
+    const res = await apiCreateTeam({
+      name: name.trim(),
       coach: coach.trim() || 'Treinador',
       color: colors[colorIdx].hex,
-      createdAt: new Date().toISOString(),
     });
-    setRoster(seedSample ? SAMPLE_ATHLETES.map((a, i) => ({ id: i + 1, ...a })) : []);
+    if (!res.ok) {
+      toast.error(res.error.toUpperCase());
+      setBusy(false);
+      return;
+    }
+    if (seedSample) {
+      for (const a of SAMPLE_ATHLETES) {
+        await apiAddAthlete(a);
+      }
+    }
     toast.success('EQUIPA CRIADA');
     setTimeout(() => navigate('/dashboard'), 350);
   };
@@ -68,9 +89,7 @@ export default function TeamSetup() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">
-                Nome da Equipa *
-              </label>
+              <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Nome da Equipa *</label>
               <input
                 type="text"
                 value={name}
@@ -83,9 +102,7 @@ export default function TeamSetup() {
             </div>
 
             <div>
-              <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">
-                Treinador
-              </label>
+              <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Treinador</label>
               <input
                 type="text"
                 value={coach}
@@ -97,9 +114,7 @@ export default function TeamSetup() {
             </div>
 
             <div>
-              <label className="block text-[10px] tracking-label uppercase text-white/60 mb-3">
-                Cor Principal
-              </label>
+              <label className="block text-[10px] tracking-label uppercase text-white/60 mb-3">Cor Principal</label>
               <div className="flex gap-2 flex-wrap">
                 {colors.map((c, i) => (
                   <button
@@ -131,14 +146,14 @@ export default function TeamSetup() {
               </div>
             </label>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                className="flex-1 bg-neon text-black font-display text-xl tracking-wider uppercase py-3.5 rounded-sm transition-all hover:bg-[#bbdc0d] active:scale-[0.99] flex items-center justify-center gap-2"
-              >
-                <Shield size={18} /> Criar Equipa
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full bg-neon text-black font-display text-xl tracking-wider uppercase py-3.5 rounded-sm transition-all hover:bg-[#bbdc0d] active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {busy ? <Loader2 size={18} className="animate-spin" /> : <Shield size={18} />}
+              {busy ? 'A criar...' : 'Criar Equipa'}
+            </button>
           </form>
         </div>
       </div>

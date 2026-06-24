@@ -1,17 +1,40 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square } from 'lucide-react';
+import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square, Loader2 } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
-import { getMatches, deleteMatch, getTeam } from '../lib/storage';
+import { apiGetTeam, apiListMatches, apiDeleteMatch, getSessionUser } from '../lib/api';
 import { formatTime, formatTimeLong, formatCountdown } from '../lib/time';
 import { toast } from 'sonner';
 
 export default function Estatisticas() {
   const navigate = useNavigate();
-  const team = getTeam();
-  const [matches, setMatches] = useState(getMatches());
-  const [expanded, setExpanded] = useState(matches[0]?.id || null);
+  const sessionUser = getSessionUser();
+  const [team, setTeam] = useState(null);
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+
+  useEffect(() => {
+    if (!sessionUser) {
+      navigate('/');
+      return;
+    }
+    (async () => {
+      const t = await apiGetTeam();
+      if (!t.ok || !t.team) {
+        navigate('/team-setup');
+        return;
+      }
+      setTeam(t.team);
+      const m = await apiListMatches();
+      if (m.ok) {
+        setMatches(m.matches);
+        if (m.matches[0]) setExpanded(m.matches[0].id);
+      }
+      setLoading(false);
+    })();
+  }, [navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const aggregate = useMemo(() => {
     const stats = {};
@@ -40,15 +63,24 @@ export default function Estatisticas() {
       .sort((a, b) => b.totalTime - a.totalTime);
   }, [matches]);
 
-  if (!team) {
-    navigate('/team-setup');
-    return null;
+  if (!sessionUser) return null;
+  if (loading || !team) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        <Loader2 className="animate-spin text-neon" size={32} />
+      </div>
+    );
   }
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (!window.confirm('Eliminar este jogo definitivamente?')) return;
-    deleteMatch(id);
-    setMatches(getMatches());
+    const res = await apiDeleteMatch(id);
+    if (!res.ok) {
+      toast.error(res.error.toUpperCase());
+      return;
+    }
+    const m = await apiListMatches();
+    if (m.ok) setMatches(m.matches);
     toast.success('JOGO ELIMINADO');
   };
 
@@ -194,24 +226,24 @@ export default function Estatisticas() {
                             <div className="font-display text-xl lg:text-2xl uppercase truncate">
                               {team.name} <span className="text-white/40">vs</span> {m.opponent}
                             </div>
-                            {(typeof m.homeScore === 'number') && (
+                            {(typeof m.home_score === 'number') && (
                               <span className="font-display text-xl lg:text-2xl tabular-nums">
-                                <span className={m.homeScore > m.awayScore ? 'text-neon' : m.homeScore < m.awayScore ? 'text-white/70' : 'text-white'}>
-                                  {m.homeScore}
+                                <span className={m.home_score > m.away_score ? 'text-neon' : m.home_score < m.away_score ? 'text-white/70' : 'text-white'}>
+                                  {m.home_score}
                                 </span>
                                 <span className="text-white/30 mx-2">·</span>
-                                <span className={m.awayScore > m.homeScore ? 'text-red-400' : 'text-white/70'}>
-                                  {m.awayScore}
+                                <span className={m.away_score > m.home_score ? 'text-red-400' : 'text-white/70'}>
+                                  {m.away_score}
                                 </span>
                               </span>
                             )}
-                            {(typeof m.homeScore === 'number') && (
+                            {(typeof m.home_score === 'number') && (
                               <span className={`text-[10px] tracking-label uppercase px-2 py-1 rounded-sm ${
-                                m.homeScore > m.awayScore ? 'bg-neon/15 text-neon' :
-                                m.homeScore < m.awayScore ? 'bg-red-500/15 text-red-400' :
+                                m.home_score > m.away_score ? 'bg-neon/15 text-neon' :
+                                m.home_score < m.away_score ? 'bg-red-500/15 text-red-400' :
                                 'bg-white/10 text-white/60'
                               }`}>
-                                {m.homeScore > m.awayScore ? 'Vitória' : m.homeScore < m.awayScore ? 'Derrota' : 'Empate'}
+                                {m.home_score > m.away_score ? 'Vitória' : m.home_score < m.away_score ? 'Derrota' : 'Empate'}
                               </span>
                             )}
                           </div>
@@ -227,7 +259,7 @@ export default function Estatisticas() {
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="text-right hidden sm:block">
                             <div className="text-[10px] tracking-label uppercase text-white/50">Duração</div>
-                            <div className="font-mono text-neon">{formatTimeLong(m.totalDuration || 0)}</div>
+                            <div className="font-mono text-neon">{formatTimeLong(m.total_duration || 0)}</div>
                           </div>
                           <button
                             onClick={(e) => {
@@ -297,10 +329,10 @@ export default function Estatisticas() {
                           )}
 
                           {/* Fouls summary */}
-                          {((m.fouls || []).length > 0 || (typeof m.foulsCommitted === 'number' && m.foulsCommitted > 0)) && (
+                          {((m.fouls || []).length > 0 || (typeof m.fouls_committed === 'number' && m.fouls_committed > 0)) && (
                             <div>
                               <div className="text-[10px] tracking-label uppercase text-orange-400 mb-2 flex items-center gap-2">
-                                <AlertTriangle size={12} /> Faltas — Marcadas: {m.foulsCommitted ?? 0} · Sofridas: {m.foulsSuffered ?? 0}
+                                <AlertTriangle size={12} /> Faltas — Marcadas: {m.fouls_committed ?? 0} · Sofridas: {m.fouls_suffered ?? 0}
                               </div>
                               {(m.fouls || []).length > 0 && (
                                 <div className="space-y-1">
@@ -337,7 +369,7 @@ export default function Estatisticas() {
                           {(m.cards || []).length > 0 && (
                             <div>
                               <div className="text-[10px] tracking-label uppercase text-white/55 mb-2 flex items-center gap-2">
-                                <Square size={12} /> Cartões — Amarelos: <span className="text-yellow-300">{m.yellowCards ?? 0}</span> · Vermelhos: <span className="text-red-400">{m.redCards ?? 0}</span>
+                                <Square size={12} /> Cartões — Amarelos: <span className="text-yellow-300">{m.yellow_cards ?? 0}</span> · Vermelhos: <span className="text-red-400">{m.red_cards ?? 0}</span>
                               </div>
                               <div className="space-y-1">
                                 {[...m.cards].reverse().map((c) => (
