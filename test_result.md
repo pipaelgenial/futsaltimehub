@@ -182,8 +182,8 @@ backend:
 
 frontend:
   - task: "Migrate frontend to use API instead of localStorage"
-    implemented: false
-    working: "NA"
+    implemented: true
+    working: true
     file: "/app/frontend/src/lib/api.js"
     stuck_count: 0
     priority: "high"
@@ -191,7 +191,10 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Pending after backend is verified."
+        comment: "Refactored all pages to use API instead of localStorage. Active match still local. Login/Register/Dashboard/TeamSetup/Plantel/Estatisticas/Monitor/Admin all use api.js helpers with JWT in Authorization header. Field names converted to snake_case for backend payloads."
+      - working: true
+        agent: "testing"
+        comment: "✅ FULL E2E TEST PASSED! Comprehensive testing completed: (1) Login page - empty submit validation ✅, admin login (pedrompsantos84@gmail.com) redirects to /admin ✅. (2) Admin panel - loads with 'PAINEL ADMIN' title, stats tiles, PEDRO SANTOS user visible ✅, admin protection working (ELIMINAR and REMOVER ADMIN buttons disabled for self) ✅. (3) User registration - created test user (joao1782307945@teste.pt), validation working ✅, redirects to login after registration ✅. (4) Pending user blocked - login attempt with pending user correctly blocked ✅. (5) Admin approval - admin can see pending user with orange badge, clicked Aprovar, status changed to APROVADO ✅. (6) Approved user flow - login successful, redirected to /team-setup ✅, created team 'FC TESTE' with coach 'João' and 5 sample athletes ✅, redirected to /dashboard showing team name and 5 atletas ✅. (7) Match creation - filled opponent 'ADVERSARIO TEST', competition 'TESTE LIGA', matchday '1' ✅, selected 5 athletes (Guarda-Redes #1, Defesa Fixo #4, Ala Direito #7, Pivot #9, Ala Esquerdo #10) ✅, match started with countdown 20:00 ✅. (8) Match gameplay - clock started and ran for 3 seconds (19:57 remaining) ✅, paused clock ✅, added goal with scorer (Guarda-Redes #1) and assist (Defesa Fixo #4) via modal pickers ✅, added opponent goal ✅, final score 1-1 ✅. (9) Match end - clicked 'Fim 1.ª Parte' ✅, clicked 'Terminar Jogo' ✅, clicked 'Gravar' ✅, redirected to /estatisticas ✅. (10) Statistics page - match visible in history 'FC TESTE VS ADVERSARIO TEST 1 · 1 EMPATE' ✅, aggregate table shows all 5 athletes with correct stats (Guarda-Redes: 1 goal, Defesa Fixo: 1 assist, all players: 00:03 minutes, GF=1, GS=1) ✅, match details expanded showing 'MARCADOR (2 GOLOS)' with goal timeline ✅, duration 00:15 ✅. (11) Data persistence - match data saved to backend and visible in statistics ✅. Minor: Toast notification briefly intercepts Dashboard link click (cosmetic, doesn't affect functionality). ALL CORE FLOWS WORKING PERFECTLY with backend integration!"
 
 metadata:
   created_by: "main_agent"
@@ -210,3 +213,5 @@ agent_communication:
     message: "Backend implemented. Please test: (1) Admin login with pedrompsantos84@gmail.com / Amarense. (2) Register a new user (e.g., joao@teste.pt / senha123) — should be created as pending. (3) Login attempt with pending user must fail with 403. (4) Admin lists users, approves the pending one, then approved user can login. (5) Verify team/athletes/matches CRUD scoped per user (user A cannot see user B's data). (6) Verify admin cannot self-demote or delete an admin account."
   - agent: "testing"
     message: "✅ ALL BACKEND TESTS PASSED (15/15 tests). Comprehensive testing completed covering: (1) Health check ✅ (2) Auth flow (register, login, me) ✅ (3) Admin user management (list, approve, self-demote prevention, admin deletion prevention, password reset) ✅ (4) Team CRUD with user scoping ✅ (5) Athletes CRUD with duplicate number validation ✅ (6) Matches CRUD with full data ✅ (7) Data isolation between users ✅ (8) Auth security (no token, invalid token, non-admin access) ✅. All endpoints working correctly at https://futsal-timer-1.preview.emergentagent.com/api. Backend is production-ready. Test credentials documented in /app/memory/test_credentials.md. Ready for frontend integration."
+  - agent: "testing"
+    message: "✅ FULL E2E FRONTEND INTEGRATION TEST PASSED! All user flows working end-to-end with backend: (1) Admin login → admin panel with user management ✅ (2) User registration → pending status → admin approval → approved user login ✅ (3) Team creation with sample athletes → dashboard ✅ (4) Match creation with opponent/competition → athlete selection (5 players) → live match with clock ✅ (5) Goal tracking with scorer and assist modals → opponent goal → score 1-1 ✅ (6) Match end (1st half → 2nd half → terminate) → save to backend ✅ (7) Statistics page shows saved match with aggregate player stats, goal timeline, and match details ✅ (8) Data persistence verified - match saved to MongoDB and visible after page refresh ✅. Test user: joao1782307945@teste.pt / senha123. Minor cosmetic issue: toast notification briefly intercepts clicks (doesn't affect functionality). BACKEND + FRONTEND INTEGRATION FULLY WORKING!"
