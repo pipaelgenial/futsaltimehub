@@ -4,7 +4,7 @@ import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar,
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { getMatches, deleteMatch, getTeam } from '../lib/storage';
-import { formatTime, formatTimeLong } from '../lib/time';
+import { formatTime, formatTimeLong, formatCountdown } from '../lib/time';
 import { toast } from 'sonner';
 
 export default function Estatisticas() {
@@ -102,7 +102,7 @@ export default function Estatisticas() {
                 <span className="w-7 h-7 bg-neon text-black flex items-center justify-center rounded-sm">
                   <Trophy size={14} />
                 </span>
-                Atletas · Minutos & Golos (Total)
+                Atletas · Minutos, Golos & Disciplina (Total)
               </h2>
               <div className="border border-white/10 rounded-sm overflow-x-auto">
                 <table className="w-full text-sm min-w-[720px]">
@@ -116,7 +116,6 @@ export default function Estatisticas() {
                       <th className="text-right px-4 py-3 w-20" title="Golos marcados">G</th>
                       <th className="text-right px-4 py-3 w-20" title="Golos a favor enquanto em campo">GF</th>
                       <th className="text-right px-4 py-3 w-20" title="Golos sofridos enquanto em campo">GS</th>
-                      <th className="text-right px-4 py-3 w-20" title="Diferencial (+/-)">+/-</th>
                       <th className="text-right px-4 py-3 w-16" title="Faltas cometidas">F</th>
                       <th className="text-right px-4 py-3 w-16" title="Cartões amarelos">CA</th>
                       <th className="text-right px-4 py-3 w-16" title="Cartões vermelhos">CV</th>
@@ -137,13 +136,8 @@ export default function Estatisticas() {
                         <td className="px-4 py-3 text-right font-mono">
                           {a.scored > 0 ? <span className="text-neon">{a.scored}</span> : <span className="text-white/30">0</span>}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-white/80">{a.goalsFor}</td>
-                        <td className="px-4 py-3 text-right font-mono text-white/80">{a.goalsAgainst}</td>
-                        <td className={`px-4 py-3 text-right font-mono font-bold ${
-                          a.plusMinus > 0 ? 'text-neon' : a.plusMinus < 0 ? 'text-red-400' : 'text-white/40'
-                        }`}>
-                          {a.plusMinus > 0 ? '+' : ''}{a.plusMinus}
-                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-neon/80">{a.goalsFor}</td>
+                        <td className="px-4 py-3 text-right font-mono text-red-400/80">{a.goalsAgainst}</td>
                         <td className="px-4 py-3 text-right font-mono">
                           {a.foulsCommitted > 0 ? <span className="text-orange-400">{a.foulsCommitted}</span> : <span className="text-white/30">0</span>}
                         </td>
@@ -169,7 +163,7 @@ export default function Estatisticas() {
                 </table>
               </div>
               <div className="text-[10px] tracking-label uppercase text-white/40 mt-2">
-                G = golos · GF/GS = golos a favor/sofridos em campo · +/- = diferencial · F = faltas · CA/CV = cartões
+                G = golos marcados · GF = golos a favor em campo · GS = golos sofridos em campo · F = faltas · CA/CV = cartões
               </div>
             </section>
 
@@ -260,7 +254,7 @@ export default function Estatisticas() {
                                 {[...m.goals].reverse().map((g) => (
                                   <div key={g.id} className="text-xs flex items-center gap-3">
                                     <span className="font-mono text-white/50 w-16">
-                                      {g.half}.ª {formatTime(g.minute)}
+                                      {g.half}.ª {formatCountdown(g.minute)}
                                     </span>
                                     {g.type === 'home' ? (
                                       <>
@@ -300,7 +294,7 @@ export default function Estatisticas() {
                                 <div className="space-y-1">
                                   {[...(m.fouls || [])].reverse().map((f) => (
                                     <div key={f.id} className="text-xs flex items-center gap-3">
-                                      <span className="font-mono text-white/50 w-16">{f.half}.ª {formatTime(f.minute)}</span>
+                                      <span className="font-mono text-white/50 w-16">{f.half}.ª {formatCountdown(f.minute)}</span>
                                       {f.type === 'committed' ? (
                                         <span className="text-orange-400 uppercase font-semibold w-20">Marcada</span>
                                       ) : (
@@ -336,7 +330,7 @@ export default function Estatisticas() {
                               <div className="space-y-1">
                                 {[...m.cards].reverse().map((c) => (
                                   <div key={c.id} className="text-xs flex items-center gap-3">
-                                    <span className="font-mono text-white/50 w-16">{c.half}.ª {formatTime(c.minute)}</span>
+                                    <span className="font-mono text-white/50 w-16">{c.half}.ª {formatCountdown(c.minute)}</span>
                                     <span className={`inline-block w-3 h-4 rounded-[1px] ${c.type === 'red' ? 'bg-red-500' : 'bg-yellow-400'}`} />
                                     <span className={`uppercase font-semibold w-20 ${c.type === 'red' ? 'text-red-400' : 'text-yellow-300'}`}>
                                       {c.type === 'red' ? 'Vermelho' : 'Amarelo'}
@@ -362,7 +356,8 @@ export default function Estatisticas() {
                               {[...m.players]
                                 .sort((a, b) => b.totalTime - a.totalTime)
                                 .map((p) => {
-                                  const pm = (p.goalsFor || 0) - (p.goalsAgainst || 0);
+                                  const gf = p.goalsFor || 0;
+                                  const gs = p.goalsAgainst || 0;
                                   const stints = p.stints || [];
                                   return (
                                     <div
@@ -378,7 +373,7 @@ export default function Estatisticas() {
                                           {p.sentOff && <span className="ml-2 text-[9px] text-red-400">EXPULSO</span>}
                                         </span>
                                         {p.scored > 0 && (
-                                          <span className="text-[10px] tracking-label uppercase text-neon" title="Golos">
+                                          <span className="text-[10px] tracking-label uppercase text-neon" title="Golos marcados">
                                             ⚽{p.scored}
                                           </span>
                                         )}
@@ -394,12 +389,11 @@ export default function Estatisticas() {
                                             <span className="text-[10px] font-mono text-red-400">{p.redCards}</span>
                                           </span>
                                         )}
-                                        <span className={`font-mono text-[10px] tabular-nums px-1.5 py-0.5 rounded-sm ${
-                                          pm > 0 ? 'bg-neon/15 text-neon' :
-                                          pm < 0 ? 'bg-red-500/15 text-red-400' :
-                                          'bg-white/5 text-white/50'
-                                        }`} title="Diferencial em campo">
-                                          {pm > 0 ? '+' : ''}{pm}
+                                        <span className="font-mono text-[10px] tabular-nums px-1.5 py-0.5 rounded-sm bg-neon/15 text-neon" title="Golos a favor em campo">
+                                          GF {gf}
+                                        </span>
+                                        <span className="font-mono text-[10px] tabular-nums px-1.5 py-0.5 rounded-sm bg-red-500/15 text-red-400" title="Golos sofridos em campo">
+                                          GS {gs}
                                         </span>
                                         <span className="font-mono text-sm text-neon tabular-nums shrink-0">
                                           {formatTime(p.totalTime)}
@@ -420,11 +414,11 @@ export default function Estatisticas() {
                                               >
                                                 <span className="text-white/40 tracking-label uppercase">P{idx + 1}</span>
                                                 <span className="font-mono text-white/70">
-                                                  {s.inHalf}.ª {formatTime(s.inMinute)}
+                                                  {s.inHalf}.ª {formatCountdown(s.inMinute)}
                                                 </span>
                                                 <span className="text-white/30">→</span>
                                                 <span className="font-mono text-white/70">
-                                                  {isOpen ? '—' : `${s.outHalf}.ª ${formatTime(s.outMinute)}`}
+                                                  {isOpen ? '—' : `${s.outHalf}.ª ${formatCountdown(s.outMinute)}`}
                                                 </span>
                                                 <span className="font-mono text-neon">
                                                   {formatTime(dur)}
@@ -452,7 +446,7 @@ export default function Estatisticas() {
                               <div className="space-y-1">
                                 {m.subs.map((s, i) => (
                                   <div key={i} className="text-xs flex items-center gap-3 text-white/70">
-                                    <span className="font-mono text-white/50 w-14">{s.half}.ª {formatTime(s.minute)}</span>
+                                    <span className="font-mono text-white/50 w-14">{s.half}.ª {formatCountdown(s.minute)}</span>
                                     <span className="text-red-400">↓ {s.out.number} {s.out.name}</span>
                                     <span className="text-white/30">→</span>
                                     <span className="text-neon">↑ {s.in.number} {s.in.name}</span>

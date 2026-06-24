@@ -14,3 +14,8 @@ export const formatTimeLong = (sec) => {
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
 };
+
+// Convert elapsed seconds within a half into countdown time (e.g., 05:30 elapsed → 14:30 remaining)
+export const formatCountdown = (elapsedSeconds, halfDuration = 1200) => {
+  return formatTime(Math.max(0, halfDuration - elapsedSeconds));
+};

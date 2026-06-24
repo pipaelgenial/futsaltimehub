@@ -11,7 +11,7 @@ import {
   getTeam, getRoster, getActiveMatch, setActiveMatch, clearActiveMatch,
   saveMatch, HALF_DURATION,
 } from '../lib/storage';
-import { formatTime, formatTimeLong } from '../lib/time';
+import { formatTime, formatTimeLong, formatCountdown } from '../lib/time';
 import { toast } from 'sonner';
 
 export default function Monitor() {
@@ -556,39 +556,89 @@ function LiveMatch({ team, match, onEnd }) {
       playerName: player.name,
       playerNumber: player.number,
     };
-    setCards((cs) => [card, ...cs]);
-    setPendingPicker(null);
-    if (type === 'red') {
-      // On red card: send player to bench (sentOff) and create empty slot with 2-min penalty
-      setPlayers((prev) =>
-        prev.map((p) => {
-          if (p.id !== player.id || !p.onCourt) return p;
-          const newStints = (p.stints || []).map((s, i, arr) =>
-            i === arr.length - 1 && s.outHalf === null
-              ? { ...s, outHalf: half, outMinute: elapsedHalf, duration: p.currentStint }
-              : s
-          );
-          return { ...p, onCourt: false, lastStintTime: p.currentStint, currentStint: 0, sentOff: true, stints: newStints };
-        })
-      );
-      const slot = {
-        id: Date.now() + Math.random() + 1,
-        half,
-        sentOffAt: elapsedHalf,
-        secondsRemaining: 120, // 2 minutes penalty
-        originalPlayerId: player.id,
-        originalNumber: player.number,
-        originalName: player.name,
-      };
-      setEmptySlots((prev) => [...prev, slot]);
-      toast.error('CARTÃO VERMELHO', {
-        description: `${player.number} ${player.name.toUpperCase()} \u2014 Expulso · 2 min sem substituto`,
-      });
-    } else {
+
+    if (type === 'yellow') {
+      // Check previous yellows for this player
+      const previousYellows = cards.filter((c) => c.playerId === player.id && c.type === 'yellow').length;
+      if (previousYellows >= 1) {
+        // 2nd yellow → register both yellow AND automatic red
+        const redCard = {
+          id: Date.now() + Math.random() + 1,
+          type: 'red',
+          minute: elapsedHalf,
+          half,
+          playerId: player.id,
+          playerName: player.name,
+          playerNumber: player.number,
+          fromTwoYellows: true,
+        };
+        setCards((cs) => [redCard, card, ...cs]);
+        // Apply red card actions (send off + empty slot)
+        setPlayers((prev) =>
+          prev.map((p) => {
+            if (p.id !== player.id || !p.onCourt) return p;
+            const newStints = (p.stints || []).map((s, i, arr) =>
+              i === arr.length - 1 && s.outHalf === null
+                ? { ...s, outHalf: half, outMinute: elapsedHalf, duration: p.currentStint }
+                : s
+            );
+            return { ...p, onCourt: false, lastStintTime: p.currentStint, currentStint: 0, sentOff: true, stints: newStints };
+          })
+        );
+        const slot = {
+          id: Date.now() + Math.random() + 2,
+          half,
+          sentOffAt: elapsedHalf,
+          secondsRemaining: 120,
+          originalPlayerId: player.id,
+          originalNumber: player.number,
+          originalName: player.name,
+          fromTwoYellows: true,
+        };
+        setEmptySlots((prev) => [...prev, slot]);
+        setPendingPicker(null);
+        toast.error('2.º AMARELO → VERMELHO', {
+          description: `${player.number} ${player.name.toUpperCase()} — Expulso · 2 min sem substituto`,
+        });
+        return;
+      }
+      // Just a regular yellow
+      setCards((cs) => [card, ...cs]);
+      setPendingPicker(null);
       toast.message('CARTÃO AMARELO', {
         description: `${player.number} ${player.name.toUpperCase()}`,
       });
+      return;
     }
+
+    // Direct red card
+    setCards((cs) => [card, ...cs]);
+    setPendingPicker(null);
+    // Send player off + create empty slot with 2-min penalty
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (p.id !== player.id || !p.onCourt) return p;
+        const newStints = (p.stints || []).map((s, i, arr) =>
+          i === arr.length - 1 && s.outHalf === null
+            ? { ...s, outHalf: half, outMinute: elapsedHalf, duration: p.currentStint }
+            : s
+        );
+        return { ...p, onCourt: false, lastStintTime: p.currentStint, currentStint: 0, sentOff: true, stints: newStints };
+      })
+    );
+    const slot = {
+      id: Date.now() + Math.random() + 1,
+      half,
+      sentOffAt: elapsedHalf,
+      secondsRemaining: 120,
+      originalPlayerId: player.id,
+      originalNumber: player.number,
+      originalName: player.name,
+    };
+    setEmptySlots((prev) => [...prev, slot]);
+    toast.error('CARTÃO VERMELHO', {
+      description: `${player.number} ${player.name.toUpperCase()} — Expulso · 2 min sem substituto`,
+    });
   };
 
   const undoLastCard = () => {
@@ -1086,7 +1136,7 @@ function LiveMatch({ team, match, onEnd }) {
                     <tr key={g.id} className="border-t border-white/5 bg-[#0a0a0a] hover:bg-[#111]">
                       <td className="px-4 py-3 font-mono text-neon">#{goals.length - i}</td>
                       <td className="px-4 py-3 text-white/70">{g.half}.ª</td>
-                      <td className="px-4 py-3 font-mono">{formatTime(g.minute)}</td>
+                      <td className="px-4 py-3 font-mono">{formatCountdown(g.minute)}</td>
                       <td className="px-4 py-3">
                         {g.type === 'home' ? (
                           <span className="text-neon font-semibold uppercase">{team.name}</span>
@@ -1136,7 +1186,7 @@ function LiveMatch({ team, match, onEnd }) {
                     <tr key={f.id} className="border-t border-white/5 bg-[#0a0a0a] hover:bg-[#111]">
                       <td className="px-4 py-3 font-mono text-orange-400">#{fouls.length - i}</td>
                       <td className="px-4 py-3 text-white/70">{f.half}.ª</td>
-                      <td className="px-4 py-3 font-mono">{formatTime(f.minute)}</td>
+                      <td className="px-4 py-3 font-mono">{formatCountdown(f.minute)}</td>
                       <td className="px-4 py-3">
                         {f.type === 'committed' ? (
                           <span className="text-orange-400 uppercase tracking-wide font-semibold">Marcada</span>
@@ -1186,7 +1236,7 @@ function LiveMatch({ team, match, onEnd }) {
                     <tr key={c.id} className="border-t border-white/5 bg-[#0a0a0a] hover:bg-[#111]">
                       <td className="px-4 py-3 font-mono text-white/60">#{cards.length - i}</td>
                       <td className="px-4 py-3 text-white/70">{c.half}.ª</td>
-                      <td className="px-4 py-3 font-mono">{formatTime(c.minute)}</td>
+                      <td className="px-4 py-3 font-mono">{formatCountdown(c.minute)}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block w-5 h-7 rounded-sm align-middle mr-2 ${
                           c.type === 'red' ? 'bg-red-500' : 'bg-yellow-400'
@@ -1194,7 +1244,7 @@ function LiveMatch({ team, match, onEnd }) {
                         <span className={`uppercase tracking-wide font-semibold ${
                           c.type === 'red' ? 'text-red-400' : 'text-yellow-300'
                         }`}>
-                          {c.type === 'red' ? 'Vermelho' : 'Amarelo'}
+                          {c.type === 'red' ? (c.fromTwoYellows ? 'Vermelho (2.º AM)' : 'Vermelho') : 'Amarelo'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -1238,7 +1288,7 @@ function LiveMatch({ team, match, onEnd }) {
                     <tr key={s.id} className="border-t border-white/5 bg-[#0a0a0a] hover:bg-[#111]">
                       <td className="px-4 py-3 font-mono text-neon">#{subs.length - i}</td>
                       <td className="px-4 py-3 text-white/70">{s.half}.ª</td>
-                      <td className="px-4 py-3 font-mono">{formatTime(s.minute)}</td>
+                      <td className="px-4 py-3 font-mono">{formatCountdown(s.minute)}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-2">
                           <span className="w-7 h-7 bg-red-500/15 text-red-400 rounded-sm flex items-center justify-center text-xs font-mono">
@@ -1290,7 +1340,7 @@ function LiveMatch({ team, match, onEnd }) {
                   pendingPicker.accent === 'orange' ? 'text-orange-400' :
                   'text-neon'
                 }`}>
-                  {half}.ª Parte · {formatTime(elapsedHalf)}
+                  {half}.ª Parte · {formatCountdown(elapsedHalf)}
                 </div>
                 <h3 className="font-display text-2xl uppercase">{pendingPicker.title}</h3>
                 <div className="text-xs text-white/55 mt-1">{pendingPicker.subtitle}</div>
