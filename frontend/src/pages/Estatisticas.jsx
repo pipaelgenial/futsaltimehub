@@ -20,12 +20,13 @@ export default function Estatisticas() {
         if (!stats[p.id]) {
           stats[p.id] = {
             id: p.id, name: p.name, number: p.number, position: p.position,
-            totalTime: 0, games: 0, scored: 0, goalsFor: 0, goalsAgainst: 0,
+            totalTime: 0, games: 0, scored: 0, assists: 0, goalsFor: 0, goalsAgainst: 0,
             foulsCommitted: 0, yellowCards: 0, redCards: 0,
           };
         }
         stats[p.id].totalTime += p.totalTime || 0;
         stats[p.id].scored += p.scored || 0;
+        stats[p.id].assists += p.assists || 0;
         stats[p.id].goalsFor += p.goalsFor || 0;
         stats[p.id].goalsAgainst += p.goalsAgainst || 0;
         stats[p.id].foulsCommitted += p.foulsCommitted || 0;
@@ -114,6 +115,7 @@ export default function Estatisticas() {
                       <th className="text-right px-4 py-3 w-20">Jogos</th>
                       <th className="text-right px-4 py-3 w-28">Minutos</th>
                       <th className="text-right px-4 py-3 w-20" title="Golos marcados">G</th>
+                      <th className="text-right px-4 py-3 w-20" title="Assistências">A</th>
                       <th className="text-right px-4 py-3 w-20" title="Golos a favor enquanto em campo">GF</th>
                       <th className="text-right px-4 py-3 w-20" title="Golos sofridos enquanto em campo">GS</th>
                       <th className="text-right px-4 py-3 w-16" title="Faltas cometidas">F</th>
@@ -135,6 +137,9 @@ export default function Estatisticas() {
                         <td className="px-4 py-3 text-right font-mono text-neon">{formatTimeLong(a.totalTime)}</td>
                         <td className="px-4 py-3 text-right font-mono">
                           {a.scored > 0 ? <span className="text-neon">{a.scored}</span> : <span className="text-white/30">0</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono">
+                          {a.assists > 0 ? <span className="text-blue-300">{a.assists}</span> : <span className="text-white/30">0</span>}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-neon/80">{a.goalsFor}</td>
                         <td className="px-4 py-3 text-right font-mono text-red-400/80">{a.goalsAgainst}</td>
@@ -163,7 +168,7 @@ export default function Estatisticas() {
                 </table>
               </div>
               <div className="text-[10px] tracking-label uppercase text-white/40 mt-2">
-                G = golos marcados · GF = golos a favor em campo · GS = golos sofridos em campo · F = faltas · CA/CV = cartões
+                G = golos marcados · A = assistências · GF = golos a favor em campo · GS = golos sofridos em campo · F = faltas · CA/CV = cartões
               </div>
             </section>
 
@@ -261,12 +266,19 @@ export default function Estatisticas() {
                                         <span className="text-neon font-semibold uppercase w-24 truncate">{team.name}</span>
                                         <span className="flex-1">
                                           {g.scorerName ? (
-                                            <span className="inline-flex items-center gap-2">
-                                              <span className="w-5 h-5 bg-neon text-black rounded-sm flex items-center justify-center text-[10px] font-mono font-bold">
-                                                {g.scorerNumber}
+                                            <div className="flex flex-col gap-0.5">
+                                              <span className="inline-flex items-center gap-2">
+                                                <span className="w-5 h-5 bg-neon text-black rounded-sm flex items-center justify-center text-[10px] font-mono font-bold">
+                                                  {g.scorerNumber}
+                                                </span>
+                                                {g.scorerName}
                                               </span>
-                                              {g.scorerName}
-                                            </span>
+                                              {g.assistName && (
+                                                <span className="text-[10px] text-white/55 ml-7">
+                                                  <span className="text-neon/70">assist.</span> {g.assistNumber} {g.assistName}
+                                                </span>
+                                              )}
+                                            </div>
                                           ) : (
                                             <span className="text-white/40 italic">Sem marcador</span>
                                           )}
@@ -375,6 +387,11 @@ export default function Estatisticas() {
                                         {p.scored > 0 && (
                                           <span className="text-[10px] tracking-label uppercase text-neon" title="Golos marcados">
                                             ⚽{p.scored}
+                                          </span>
+                                        )}
+                                        {p.assists > 0 && (
+                                          <span className="text-[10px] tracking-label uppercase text-blue-300" title="Assistências">
+                                            🅰{p.assists}
                                           </span>
                                         )}
                                         {p.yellowCards > 0 && (

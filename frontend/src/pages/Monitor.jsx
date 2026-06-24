@@ -447,6 +447,7 @@ function LiveMatch({ team, match, onEnd }) {
         stints,
         goalsFor: gf, goalsAgainst: gc, plusMinus: gf - gc,
         scored: goals.filter((g) => g.scorerId === p.id).length,
+        assists: goals.filter((g) => g.assistId === p.id).length,
         foulsCommitted: fouls.filter((f) => f.playerId === p.id && f.type === 'committed').length,
         yellowCards: cards.filter((c) => c.playerId === p.id && c.type === 'yellow').length,
         redCards: cards.filter((c) => c.playerId === p.id && c.type === 'red').length,
@@ -491,6 +492,9 @@ function LiveMatch({ team, match, onEnd }) {
       scorerId: scorer ? scorer.id : null,
       scorerName: scorer ? scorer.name : null,
       scorerNumber: scorer ? scorer.number : null,
+      assistId: null,
+      assistName: null,
+      assistNumber: null,
       playersOnCourt: courtIds,
     };
     setGoals((gs) => [goal, ...gs]);
@@ -499,12 +503,51 @@ function LiveMatch({ team, match, onEnd }) {
       toast.success('GOLO ' + team.name, {
         description: scorer ? `${scorer.number} ${scorer.name.toUpperCase()}` : 'Sem marcador',
       });
+      // If scorer identified, open assister picker
+      if (scorer) {
+        setTimeout(() => openAssisterPicker(goal.id, scorer.id), 250);
+      }
     } else {
       // Futsal rule: when opponent scores, the 2-min penalty ends - the team can immediately bring a substitute
       setEmptySlots((prev) =>
         prev.map((s) => (s.secondsRemaining > 0 ? { ...s, secondsRemaining: 0 } : s))
       );
       toast.message('GOLO ADVERSÁRIO', { description: match.opponent });
+    }
+  };
+
+  const openAssisterPicker = (goalId, scorerId) => {
+    if (ended) return;
+    const eligible = players.filter((p) => p.onCourt && !p.sentOff && p.id !== scorerId);
+    setPendingPicker({
+      kind: 'assist',
+      title: 'Quem assistiu?',
+      subtitle: 'Seleciona o jogador que assistiu para o golo.',
+      players: eligible,
+      allowNone: true,
+      accent: 'neon',
+      onPick: (p) => recordAssist(goalId, p),
+    });
+  };
+
+  const recordAssist = (goalId, assister) => {
+    setGoals((gs) =>
+      gs.map((g) =>
+        g.id === goalId
+          ? {
+              ...g,
+              assistId: assister ? assister.id : null,
+              assistName: assister ? assister.name : null,
+              assistNumber: assister ? assister.number : null,
+            }
+          : g
+      )
+    );
+    setPendingPicker(null);
+    if (assister) {
+      toast.message('ASSISTÊNCIA', {
+        description: `${assister.number} ${assister.name.toUpperCase()}`,
+      });
     }
   };
 
@@ -1146,12 +1189,19 @@ function LiveMatch({ team, match, onEnd }) {
                       </td>
                       <td className="px-4 py-3">
                         {g.scorerName ? (
-                          <span className="inline-flex items-center gap-2">
-                            <span className="w-7 h-7 bg-neon text-black rounded-sm flex items-center justify-center text-xs font-mono font-bold">
-                              {g.scorerNumber}
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-2">
+                              <span className="w-7 h-7 bg-neon text-black rounded-sm flex items-center justify-center text-xs font-mono font-bold">
+                                {g.scorerNumber}
+                              </span>
+                              {g.scorerName}
                             </span>
-                            {g.scorerName}
-                          </span>
+                            {g.assistName && (
+                              <span className="text-[10px] text-white/55 ml-9">
+                                <span className="text-neon/70">assist.</span> {g.assistNumber} {g.assistName}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-white/45 italic">
                             {g.type === 'away' ? 'Golo Adversário' : 'Sem marcador'}
