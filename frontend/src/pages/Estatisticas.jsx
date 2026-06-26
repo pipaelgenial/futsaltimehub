@@ -1,11 +1,20 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square, Loader2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square, Loader2, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { apiGetTeam, apiListMatches, apiDeleteMatch, getSessionUser } from '../lib/api';
 import { formatTime, formatTimeLong, formatCountdown } from '../lib/time';
 import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
+import { exportMatchCSV, exportMatchPDF, exportSeasonCSV, exportSeasonPDF } from '../lib/exporters';
 
 export default function Estatisticas() {
   const navigate = useNavigate();
@@ -103,14 +112,53 @@ export default function Estatisticas() {
       </header>
 
       <main className="flex-1 px-5 lg:px-8 py-8 max-w-6xl mx-auto w-full">
-        <div className="mb-8">
-          <div className="text-neon text-[11px] tracking-label uppercase mb-2">Histórico</div>
-          <h1 className="font-display text-4xl lg:text-5xl uppercase leading-none">
-            Jogos <span className="text-neon">·</span> {matches.length}
-          </h1>
-          <p className="text-sm text-white/55 mt-3">
-            Histórico completo de partidas, minutos por atleta e substituições.
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-neon text-[11px] tracking-label uppercase mb-2">Histórico</div>
+            <h1 className="font-display text-4xl lg:text-5xl uppercase leading-none">
+              Jogos <span className="text-neon">·</span> {matches.length}
+            </h1>
+            <p className="text-sm text-white/55 mt-3">
+              Histórico completo de partidas, minutos por atleta e substituições.
+            </p>
+          </div>
+          {matches.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  data-testid="export-season-trigger"
+                  className="inline-flex items-center gap-2 bg-neon text-black font-display text-xs uppercase tracking-wider px-4 py-2.5 rounded-sm hover:bg-[#bbdc0d] transition-colors"
+                >
+                  <Download size={14} /> Exportar Época
+                  <ChevronDown size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-[#0f0f0f] border-white/10 text-white">
+                <DropdownMenuLabel className="text-[10px] tracking-label uppercase text-white/50">Formato</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  data-testid="export-season-csv"
+                  className="cursor-pointer focus:bg-neon/15 focus:text-neon"
+                  onClick={() => {
+                    exportSeasonCSV(team, aggregate, matches);
+                    toast.success('CSV DA ÉPOCA GERADO');
+                  }}
+                >
+                  <FileSpreadsheet size={14} className="mr-2" /> CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="export-season-pdf"
+                  className="cursor-pointer focus:bg-neon/15 focus:text-neon"
+                  onClick={() => {
+                    exportSeasonPDF(team, aggregate, matches);
+                    toast.success('PDF DA ÉPOCA GERADO');
+                  }}
+                >
+                  <FileText size={14} className="mr-2" /> PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {matches.length === 0 ? (
@@ -261,6 +309,48 @@ export default function Estatisticas() {
                             <div className="text-[10px] tracking-label uppercase text-white/50">Duração</div>
                             <div className="font-mono text-neon">{formatTimeLong(m.total_duration || 0)}</div>
                           </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                data-testid={`export-match-trigger-${m.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-white/40 hover:text-neon p-2"
+                                title="Exportar este jogo"
+                              >
+                                <Download size={14} />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className="bg-[#0f0f0f] border-white/10 text-white"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <DropdownMenuLabel className="text-[10px] tracking-label uppercase text-white/50">Exportar Jogo</DropdownMenuLabel>
+                              <DropdownMenuSeparator className="bg-white/10" />
+                              <DropdownMenuItem
+                                data-testid={`export-match-csv-${m.id}`}
+                                className="cursor-pointer focus:bg-neon/15 focus:text-neon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  exportMatchCSV(team, m);
+                                  toast.success('CSV DO JOGO GERADO');
+                                }}
+                              >
+                                <FileSpreadsheet size={14} className="mr-2" /> CSV
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                data-testid={`export-match-pdf-${m.id}`}
+                                className="cursor-pointer focus:bg-neon/15 focus:text-neon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  exportMatchPDF(team, m);
+                                  toast.success('PDF DO JOGO GERADO');
+                                }}
+                              >
+                                <FileText size={14} className="mr-2" /> PDF
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
