@@ -480,6 +480,12 @@ async def root():
     return {"service": "Futsal Time Hub API", "status": "ok"}
 
 
+# Health check (root-level) — required by Kubernetes readiness/liveness probes during deploy
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 # Include the router and CORS
 app.include_router(api_router)
 
