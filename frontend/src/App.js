@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import RecoverPassword from './pages/RecoverPassword';
+import ResetPassword from './pages/ResetPassword';
 import TeamSetup from './pages/TeamSetup';
 import Dashboard from './pages/Dashboard';
 import Monitor from './pages/Monitor';
@@ -24,6 +25,7 @@ function App() {
           <Route path="/" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/recuperar-password" element={<RecoverPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/team-setup" element={<TeamSetup />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/monitor" element={<Monitor />} />

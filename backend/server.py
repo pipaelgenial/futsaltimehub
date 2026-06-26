@@ -18,6 +18,8 @@ from models import (
 from auth import (
     hash_password, verify_password, create_access_token, decode_token,
 )
+import resend as resend_sdk
+from pydantic import BaseModel, EmailStr
 
 
 # ---------------- Setup ----------------
@@ -27,6 +29,13 @@ load_dotenv(ROOT_DIR / ".env")
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
+
+# Resend (email) — optional, only configured if API key present
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
+EMAIL_FROM = os.environ.get("EMAIL_FROM", "onboarding@resend.dev").strip()
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "").rstrip("/")
+if RESEND_API_KEY:
+    resend_sdk.api_key = RESEND_API_KEY
 
 app = FastAPI(title="Futsal Time Hub API")
 api_router = APIRouter(prefix="/api")
@@ -200,6 +209,98 @@ async def login(payload: UserLogin):
 @api_router.get("/auth/me", response_model=UserOut)
 async def me(current=Depends(get_current_user)):
     return _to_user_out(current)
+
+
+# ---------- Password reset ----------
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
+
+
+def _send_reset_email(to_email: str, name: str, reset_link: str) -> bool:
+    """Send password reset email via Resend. Returns True on success."""
+    if not RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not configured; skipping email send")
+        return False
+    try:
+        html = f"""
+        <div style="font-family: -apple-system, Inter, sans-serif; background: #0a0a0a; color: #ffffff; padding: 40px 24px;">
+          <div style="max-width: 520px; margin: 0 auto;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 32px;">
+              <div style="width: 40px; height: 40px; background: #d4ff1a; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: #000; font-weight: 900;">⏱</div>
+              <div>
+                <div style="font-weight: 900; letter-spacing: 0.02em; text-transform: uppercase; font-size: 16px;">FUTSAL</div>
+                <div style="font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: #aaa;">Time Hub</div>
+              </div>
+            </div>
+            <h1 style="font-weight: 900; text-transform: uppercase; letter-spacing: 0.02em; color: #fff; margin: 0 0 16px;">Repor Password</h1>
+            <p style="color: #ccc; line-height: 1.6;">Olá <strong>{name}</strong>,</p>
+            <p style="color: #ccc; line-height: 1.6;">Recebemos um pedido para repor a tua password no Futsal Time Hub. Clica no botão para criar uma nova:</p>
+            <p style="margin: 32px 0;">
+              <a href="{reset_link}" style="background: #d4ff1a; color: #000; padding: 14px 28px; text-decoration: none; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; border-radius: 4px; display: inline-block;">Repor Password</a>
+            </p>
+            <p style="color: #777; font-size: 12px; line-height: 1.6;">Este link é válido por 1 hora. Se não foste tu a solicitar, podes ignorar este email com segurança.</p>
+            <hr style="border: none; border-top: 1px solid #222; margin: 32px 0 16px;">
+            <p style="color: #555; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;">Futsal Time Hub · Criado por Pedro Pipa</p>
+          </div>
+        </div>
+        """
+        resend_sdk.Emails.send({
+            "from": EMAIL_FROM,
+            "to": to_email,
+            "subject": "Repor Password — Futsal Time Hub",
+            "html": html,
+        })
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send reset email to {to_email}: {e}")
+        return False
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(payload: ForgotPasswordIn):
+    """Generates a reset token and emails the user. Always returns 200 to avoid leaking account existence."""
+    email = payload.email.lower()
+    user = await db.users.find_one({"email": email})
+    if user and user.get("status") != "rejected":
+        import uuid as _uuid
+        from datetime import timedelta
+        token = _uuid.uuid4().hex
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+        await db.password_resets.insert_one({
+            "_id": token,
+            "user_id": user["_id"],
+            "expires_at": expires_at,
+            "created_at": datetime.utcnow(),
+        })
+        base_url = FRONTEND_URL or "https://futsal-timer-1.emergent.host"
+        reset_link = f"{base_url}/reset-password?token={token}"
+        sent = _send_reset_email(user["email"], user.get("name", "Treinador"), reset_link)
+        logger.info(f"Password reset requested for {email} — email sent: {sent}")
+    return {"ok": True, "message": "Se a conta existir, recebes um email com instruções."}
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(payload: ResetPasswordIn):
+    if len(payload.password) < 6:
+        raise HTTPException(status_code=400, detail="Password mínima de 6 caracteres")
+    record = await db.password_resets.find_one({"_id": payload.token})
+    if not record:
+        raise HTTPException(status_code=400, detail="Token inválido ou já usado")
+    if record.get("expires_at") and record["expires_at"] < datetime.utcnow():
+        await db.password_resets.delete_one({"_id": payload.token})
+        raise HTTPException(status_code=400, detail="Token expirado. Pede novo email.")
+    await db.users.update_one(
+        {"_id": record["user_id"]},
+        {"$set": {"password_hash": hash_password(payload.password)}}
+    )
+    await db.password_resets.delete_one({"_id": payload.token})
+    return {"ok": True, "message": "Password atualizada com sucesso."}
 
 
 # ============================================================

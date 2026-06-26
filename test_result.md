@@ -180,7 +180,34 @@ backend:
         agent: "testing"
         comment: "✅ Matches CRUD working correctly with proper user scoping. Tested: (1) POST /api/matches with full match data (opponent, competition, scores, players, goals, fouls, cards, subs) creates match (201). (2) GET /api/matches returns 1 match with correct data (200). (3) Data isolation verified: admin GET /api/matches returns empty list (cannot see test user's matches). All user-scoped data isolation working correctly."
 
+  - task: "Password recovery (forgot + reset) via Resend email"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added POST /api/auth/forgot-password (generates token, stores in password_resets collection with 1h expiry, sends email via Resend). Added POST /api/auth/reset-password (validates token, expiry, updates password_hash). Token is uuid4 hex. Email uses dark + neon HTML template. Frontend has /reset-password?token=xxx page. Domain noreply@futsal-time-hub.pt may need verification in Resend — if not verified, only the account owner email can receive (Resend test mode)."
+      - working: true
+        agent: "testing"
+        comment: "✅ All password recovery endpoints working correctly (9/9 tests passed). Tested: (1) POST /api/auth/forgot-password with existing user (pedrompsantos84@gmail.com) returns 200, creates token in password_resets collection with 1h expiry ✅. (2) Non-existent user returns 200 (security: no account leakage) ✅. (3) Invalid email format returns 422 validation error ✅. (4) POST /api/auth/reset-password with valid token returns 200, updates password successfully ✅. (5) User can login with new password ✅. (6) Token cannot be reused (deleted after use) returns 400 'Token inválido ou já usado' ✅. (7) Invalid token returns 400 ✅. (8) Password < 6 chars returns 400 ✅. (9) Expired token returns 400 'Token expirado' ✅. (10) Admin password restored to 'Amarense' ✅. Minor: Resend email sending fails due to unverified domain 'futsal-time-hub.pt' (expected in test mode, requires domain verification at resend.com/domains). Core password reset functionality fully working."
+
 frontend:
+  - task: "Password recovery (forgot + reset) via Resend email"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/ResetPassword.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Frontend password recovery page not tested by testing agent (backend only testing). Frontend has /reset-password?token=xxx page that calls POST /api/auth/reset-password."
+
   - task: "Migrate frontend to use API instead of localStorage"
     implemented: true
     working: true
@@ -199,7 +226,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -215,3 +242,5 @@ agent_communication:
     message: "✅ ALL BACKEND TESTS PASSED (15/15 tests). Comprehensive testing completed covering: (1) Health check ✅ (2) Auth flow (register, login, me) ✅ (3) Admin user management (list, approve, self-demote prevention, admin deletion prevention, password reset) ✅ (4) Team CRUD with user scoping ✅ (5) Athletes CRUD with duplicate number validation ✅ (6) Matches CRUD with full data ✅ (7) Data isolation between users ✅ (8) Auth security (no token, invalid token, non-admin access) ✅. All endpoints working correctly at https://futsal-timer-1.preview.emergentagent.com/api. Backend is production-ready. Test credentials documented in /app/memory/test_credentials.md. Ready for frontend integration."
   - agent: "testing"
     message: "✅ FULL E2E FRONTEND INTEGRATION TEST PASSED! All user flows working end-to-end with backend: (1) Admin login → admin panel with user management ✅ (2) User registration → pending status → admin approval → approved user login ✅ (3) Team creation with sample athletes → dashboard ✅ (4) Match creation with opponent/competition → athlete selection (5 players) → live match with clock ✅ (5) Goal tracking with scorer and assist modals → opponent goal → score 1-1 ✅ (6) Match end (1st half → 2nd half → terminate) → save to backend ✅ (7) Statistics page shows saved match with aggregate player stats, goal timeline, and match details ✅ (8) Data persistence verified - match saved to MongoDB and visible after page refresh ✅. Test user: joao1782307945@teste.pt / senha123. Minor cosmetic issue: toast notification briefly intercepts clicks (doesn't affect functionality). BACKEND + FRONTEND INTEGRATION FULLY WORKING!"
+  - agent: "testing"
+    message: "✅ PASSWORD RECOVERY BACKEND ENDPOINTS FULLY WORKING (9/9 tests passed). Both endpoints tested comprehensively: (1) POST /api/auth/forgot-password - tested with existing user, non-existent user (security check), invalid email format ✅. Token correctly stored in password_resets collection with 1h expiry ✅. (2) POST /api/auth/reset-password - tested with valid token, token reuse prevention, invalid token, short password validation, expired token ✅. Password update and login verification working ✅. Admin password restored to 'Amarense' ✅. Minor: Resend email fails due to unverified domain 'futsal-time-hub.pt' (expected, requires verification at resend.com/domains). Core password reset flow fully functional. Frontend password recovery page not tested (backend testing only)."
