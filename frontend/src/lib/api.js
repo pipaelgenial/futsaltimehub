@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 const BACKEND_URL = "https://futsaltimehub.onrender.com";
-const API = `${BACKEND_URL}/api`;
+const API = "https://futsaltimehub.onrender.com/api";
 
 const TOKEN_KEY = 'flh_token';
 const USER_KEY = 'flh_user';
