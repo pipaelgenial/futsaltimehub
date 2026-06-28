@@ -155,7 +155,7 @@ async def seed_admin():
         "_id": str(uuid.uuid4()),
         "name": "Pedro Santos",
         "email": admin_email,
-        "password_hash": hash_password("Amarense"),
+        "password_hash": hash_password("amarense123"),
         "status": "approved",
         "is_admin": True,
         "created_at": datetime.utcnow(),
