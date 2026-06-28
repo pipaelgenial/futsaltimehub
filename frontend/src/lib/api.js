@@ -1,7 +1,7 @@
 // API client for Futsal Time Hub
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = "https://futsaltimehub.onrender.com";
 const API = `${BACKEND_URL}/api`;
 
 const TOKEN_KEY = 'flh_token';
