@@ -17,20 +17,18 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
+import hashlib
 
 def hash_password(plain: str) -> str:
-    if plain is None:
-        return ""
-    plain = str(plain)
-    plain = plain[:72]
-    return pwd_context.hash(plain)
+    safe = plain.encode("utf-8")[:72]
+    return pwd_context.hash(safe)
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return pwd_context.verify(plain, hashed)
+        safe = plain.encode("utf-8")[:72]
+        return pwd_context.verify(safe, hashed)
     except Exception:
         return False
-
 
 def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None) -> str:
     expire = datetime.utcnow() + (expires_delta or timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS))
