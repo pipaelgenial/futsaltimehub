@@ -19,6 +19,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 
 
 def hash_password(plain: str) -> str:
+    plain = plain[:72]
     return pwd_context.hash(plain)
 
 
