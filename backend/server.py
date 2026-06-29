@@ -142,28 +142,34 @@ async def seed_admin():
     """Create the default admin if no admin exists."""
     admin_email = "pedrompsantos84@gmail.com"
     existing = await db.users.find_one({"email": admin_email})
+
     if existing:
-        # Ensure it's always admin + approved
         await db.users.update_one(
             {"_id": existing["_id"]},
-            {"$set": {"is_admin": True, "status": "approved"}}
+            {
+                "$set": {
+                    "is_admin": True,
+                    "status": "approved"
+                }
+            }
         )
         logger.info("Default admin already exists.")
         return
+
     import uuid
-admin_doc = {
-    "_id": str(uuid.uuid4()),
-    "name": "Pedro Santos",
-    "email": admin_email,
-    "password_hash": hash_password("amarense123"),
-    "status": "approved",
-    "is_admin": True,
-    "created_at": datetime.utcnow(),
-} 
-   }
+
+    admin_doc = {
+        "_id": str(uuid.uuid4()),
+        "name": "Pedro Santos",
+        "email": admin_email,
+        "password_hash": hash_password("amarense123"),
+        "status": "approved",
+        "is_admin": True,
+        "created_at": datetime.utcnow(),
+    }
+
     await db.users.insert_one(admin_doc)
     logger.info(f"Seeded default admin: {admin_email}")
-
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
@@ -196,19 +202,29 @@ async def register(payload: UserCreate):
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(payload: UserLogin):
     user = await db.users.find_one({"email": payload.email.lower()})
+
     if not user:
         raise HTTPException(status_code=401, detail="Email não registado")
+
     if not user.get("password_hash"):
-    raise HTTPException(status_code=401, detail="Conta sem password definida")
+        raise HTTPException(status_code=401, detail="Conta sem password definida")
+
     if not verify_password(payload.password, user["password_hash"]):
-    raise HTTPException(status_code=401, detail="Password incorreta")
+        raise HTTPException(status_code=401, detail="Password incorreta")
+
     if user.get("status") == "pending":
         raise HTTPException(status_code=403, detail="Conta aguarda aprovação de um administrador")
+
     if user.get("status") == "rejected":
         raise HTTPException(status_code=403, detail="Conta rejeitada. Contacta o administrador.")
-    token = create_access_token(user["_id"])
-    return {"access_token": token, "token_type": "bearer", "user": _to_user_out(user)}
 
+    token = create_access_token(user["_id"])
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": _to_user_out(user),
+    }
 
 @api_router.get("/auth/me", response_model=UserOut)
 async def me(current=Depends(get_current_user)):
