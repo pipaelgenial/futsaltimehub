@@ -20,13 +20,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 import hashlib
 
 def hash_password(plain: str) -> str:
-    safe = plain.encode("utf-8")[:72]
-    return pwd_context.hash(safe)
+    return pwd_context.hash(plain)
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        safe = plain.encode("utf-8")[:72]
-        return pwd_context.verify(safe, hashed)
+        return pwd_context.verify(plain, hashed)
     except Exception:
         return False
 
