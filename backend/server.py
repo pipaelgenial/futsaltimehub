@@ -151,14 +151,16 @@ async def seed_admin():
         logger.info("Default admin already exists.")
         return
     import uuid
-    admin_doc = {
-        "_id": str(uuid.uuid4()),
-        "name": "Pedro Santos",
-        "email": admin_email,
-        "status": "approved",
-        "is_admin": True,
-        "created_at": datetime.utcnow(),
-    }
+admin_doc = {
+    "_id": str(uuid.uuid4()),
+    "name": "Pedro Santos",
+    "email": admin_email,
+    "password_hash": hash_password("amarense123"),
+    "status": "approved",
+    "is_admin": True,
+    "created_at": datetime.utcnow(),
+} 
+   }
     await db.users.insert_one(admin_doc)
     logger.info(f"Seeded default admin: {admin_email}")
 
@@ -196,8 +198,10 @@ async def login(payload: UserLogin):
     user = await db.users.find_one({"email": payload.email.lower()})
     if not user:
         raise HTTPException(status_code=401, detail="Email não registado")
+    if not user.get("password_hash"):
+    raise HTTPException(status_code=401, detail="Conta sem password definida")
     if not verify_password(payload.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Password incorreta")
+    raise HTTPException(status_code=401, detail="Password incorreta")
     if user.get("status") == "pending":
         raise HTTPException(status_code=403, detail="Conta aguarda aprovação de um administrador")
     if user.get("status") == "rejected":
