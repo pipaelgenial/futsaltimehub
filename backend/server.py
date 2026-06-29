@@ -18,7 +18,8 @@ from models import (
 from auth import (
     hash_password,
     verify_password,
-   )
+    create_access_token,
+)
 import resend as resend_sdk
 from pydantic import BaseModel, EmailStr
 
