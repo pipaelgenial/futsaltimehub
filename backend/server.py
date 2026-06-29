@@ -199,26 +199,32 @@ async def register(payload: UserCreate):
     return _to_user_out(user_doc)
 
 
-@api_router.post("/auth/login", response_model=TokenResponse)
+@api_router.post("/auth/login")
 async def login(payload: UserLogin):
+    print("LOGIN START")
+    print("EMAIL:", payload.email)
+
     user = await db.users.find_one({"email": payload.email.lower()})
+    print("USER:", user)
 
     if not user:
         raise HTTPException(status_code=401, detail="Email não registado")
 
+    print("HAS PASSWORD:", "password_hash" in user)
+
     if not user.get("password_hash"):
         raise HTTPException(status_code=401, detail="Conta sem password definida")
+
+    print("VERIFYING PASSWORD")
 
     if not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Password incorreta")
 
-    if user.get("status") == "pending":
-        raise HTTPException(status_code=403, detail="Conta aguarda aprovação de um administrador")
-
-    if user.get("status") == "rejected":
-        raise HTTPException(status_code=403, detail="Conta rejeitada. Contacta o administrador.")
+    print("PASSWORD OK")
 
     token = create_access_token(user["_id"])
+
+    print("TOKEN CREATED")
 
     return {
         "access_token": token,
