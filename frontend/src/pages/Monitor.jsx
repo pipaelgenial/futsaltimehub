@@ -547,11 +547,12 @@ function LiveMatch({ team, match, onEnd }) {
 
   const openAssisterPicker = (goalId, scorerId) => {
     if (ended) return;
+    // Qualquer jogador em campo pode assistir, incluindo o guarda-redes
     const eligible = players.filter((p) => p.onCourt && !p.sentOff && p.id !== scorerId);
     setPendingPicker({
       kind: 'assist',
       title: 'Quem assistiu?',
-      subtitle: 'Seleciona o jogador que assistiu para o golo.',
+      subtitle: 'Seleciona o jogador que assistiu para o golo (inclui guarda-redes).',
       players: eligible,
       allowNone: true,
       accent: 'neon',
@@ -905,34 +906,34 @@ function LiveMatch({ team, match, onEnd }) {
         </div>
       </header>
 
-      <main className="flex-1 px-5 lg:px-8 py-6 max-w-[1500px] mx-auto w-full">
+      <main className="flex-1 px-3 md:px-5 lg:px-8 py-3 md:py-5 max-w-[1500px] mx-auto w-full">
         {/* Scoreboard */}
-        <section className="mb-4 border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-5 lg:p-6">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 lg:gap-6">
+        <section className="mb-2 md:mb-3 border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-4 lg:gap-6">
             {/* Home */}
             <div className="text-right">
-              <div className="font-display text-xl lg:text-2xl uppercase truncate">{team.name}</div>
+              <div className="font-display text-base md:text-xl lg:text-2xl uppercase truncate">{team.name}</div>
               <button
                 onClick={openGoalScorerPicker}
                 disabled={ended || onCourtPlayers.length === 0}
-                className="mt-2 inline-flex items-center gap-2 bg-neon text-black font-display text-sm uppercase tracking-wider px-4 py-2 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="mt-1.5 md:mt-2 inline-flex items-center gap-1.5 bg-neon text-black font-display text-xs md:text-sm uppercase tracking-wider px-2.5 md:px-4 py-1.5 md:py-2 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Plus size={14} /> Golo
+                <Plus size={13} /> Golo
               </button>
             </div>
 
             {/* Score */}
             <div className="text-center">
-              <div className="text-[10px] tracking-label uppercase text-white/50 mb-1">Resultado</div>
-              <div className="font-display text-6xl lg:text-7xl tabular-nums leading-none flex items-center gap-3 lg:gap-5">
+              <div className="text-[9px] md:text-[10px] tracking-label uppercase text-white/50 mb-0.5 md:mb-1">Resultado</div>
+              <div className="font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl tabular-nums leading-none flex items-center gap-2 md:gap-3 lg:gap-5">
                 <span className={homeScore > awayScore ? 'text-neon' : 'text-white'}>{homeScore}</span>
-                <span className="text-white/30 text-4xl lg:text-5xl">·</span>
+                <span className="text-white/30 text-2xl md:text-3xl lg:text-5xl">·</span>
                 <span className={awayScore > homeScore ? 'text-red-400' : 'text-white'}>{awayScore}</span>
               </div>
               {goals.length > 0 && !ended && (
                 <button
                   onClick={undoLastGoal}
-                  className="mt-2 text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors"
+                  className="mt-1 md:mt-2 text-[9px] md:text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors"
                   title="Anular último golo"
                 >
                   ↶ Anular Último
@@ -942,21 +943,21 @@ function LiveMatch({ team, match, onEnd }) {
 
             {/* Away */}
             <div>
-              <div className="font-display text-xl lg:text-2xl uppercase truncate">{match.opponent}</div>
+              <div className="font-display text-base md:text-xl lg:text-2xl uppercase truncate">{match.opponent}</div>
               <button
                 onClick={() => !ended && recordGoal('away')}
                 disabled={ended}
-                className="mt-2 inline-flex items-center gap-2 bg-red-500/15 border border-red-500/40 text-red-300 font-display text-sm uppercase tracking-wider px-4 py-2 rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="mt-1.5 md:mt-2 inline-flex items-center gap-1.5 bg-red-500/15 border border-red-500/40 text-red-300 font-display text-xs md:text-sm uppercase tracking-wider px-2.5 md:px-4 py-1.5 md:py-2 rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Plus size={14} /> Golo Adversário
+                <Plus size={13} /> <span className="hidden sm:inline">Golo</span> Adversário
               </button>
             </div>
           </div>
         </section>
 
         {/* Disciplina panel */}
-        <section className="mb-6 border border-white/10 bg-[#0f0f0f] rounded-sm p-4 lg:p-5">
-          <div className="flex items-center justify-between mb-3">
+        <section className="mb-2 md:mb-3 border border-white/10 bg-[#0f0f0f] rounded-sm p-2.5 md:p-4">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
             <div className="text-[10px] tracking-label uppercase text-neon">Disciplina · Faltas & Cartões</div>
             {(fouls.length > 0 || cards.length > 0) && !ended && (
               <div className="flex gap-3 text-[10px] tracking-label uppercase">
@@ -973,7 +974,7 @@ function LiveMatch({ team, match, onEnd }) {
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
             <DisciplineTile
               label="Faltas Marcadas"
               hint={`Esta parte · Total: ${foulsCommitted}`}
@@ -1012,15 +1013,15 @@ function LiveMatch({ team, match, onEnd }) {
         </section>
 
         {/* Control panel */}
-        <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4 mb-6">
+        <section className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-2 md:gap-3 mb-2 md:mb-3">
           {/* Big clock - COUNTDOWN */}
-          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-6 lg:p-7">
-            <div className="flex items-center justify-between mb-4">
+          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-5 lg:p-6">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
               <div>
-                <div className="text-[10px] tracking-label uppercase text-neon mb-1">
+                <div className="text-[10px] tracking-label uppercase text-neon mb-0.5 md:mb-1">
                   Cronómetro · Contagem Decrescente
                 </div>
-                <div className="text-xs text-white/55 uppercase tracking-wide">
+                <div className="text-[11px] md:text-xs text-white/55 uppercase tracking-wide">
                   {half === 1 ? '1.ª Parte' : '2.ª Parte'} · 20:00 min
                 </div>
               </div>
@@ -1037,60 +1038,60 @@ function LiveMatch({ team, match, onEnd }) {
             </div>
 
             <div
-              className={`font-display text-7xl lg:text-8xl xl:text-9xl leading-none tracking-tight tabular-nums ${
+              className={`font-display text-5xl md:text-6xl lg:text-7xl xl:text-8xl leading-none tracking-tight tabular-nums ${
                 isLast30 ? 'text-red-400' : 'text-neon neon-text'
               }`}
             >
               {formatTime(remaining)}
             </div>
 
-            <div className="flex flex-wrap gap-3 mt-6">
+            <div className="flex flex-wrap gap-2 md:gap-3 mt-3 md:mt-4">
               <button
                 onClick={toggleClock}
                 disabled={ended || halfFinished}
-                className={`flex-1 min-w-[150px] font-display text-lg uppercase tracking-wider px-5 py-3 rounded-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed ${
+                className={`flex-1 min-w-[120px] md:min-w-[150px] font-display text-sm md:text-base lg:text-lg uppercase tracking-wider px-3 md:px-5 py-2 md:py-2.5 rounded-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed ${
                   running
                     ? 'bg-white/10 text-white hover:bg-white/15'
                     : 'bg-neon text-black hover:bg-[#bbdc0d]'
                 }`}
               >
-                {running ? <Pause size={18} /> : <Play size={18} />}
+                {running ? <Pause size={16} /> : <Play size={16} />}
                 {running ? 'Pausar' : 'Iniciar'}
               </button>
               <button
                 onClick={goNextHalf}
                 disabled={ended}
-                className="flex-1 min-w-[150px] font-display text-lg uppercase tracking-wider px-5 py-3 rounded-sm bg-white/5 border border-white/10 text-white hover:border-neon transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 min-w-[120px] md:min-w-[150px] font-display text-sm md:text-base lg:text-lg uppercase tracking-wider px-3 md:px-5 py-2 md:py-2.5 rounded-sm bg-white/5 border border-white/10 text-white hover:border-neon transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <ChevronRight size={18} />
+                <ChevronRight size={16} />
                 {half === 1 ? 'Fim 1.ª Parte' : 'Terminar Jogo'}
               </button>
               {ended ? (
                 <button
                   onClick={saveCurrentMatch}
-                  className="font-display text-lg uppercase tracking-wider px-5 py-3 rounded-sm bg-neon text-black hover:bg-[#bbdc0d] transition-colors flex items-center justify-center gap-2"
+                  className="font-display text-sm md:text-base lg:text-lg uppercase tracking-wider px-3 md:px-5 py-2 md:py-2.5 rounded-sm bg-neon text-black hover:bg-[#bbdc0d] transition-colors flex items-center justify-center gap-2"
                 >
-                  <Save size={18} /> Gravar
+                  <Save size={16} /> Gravar
                 </button>
               ) : null}
             </div>
           </div>
 
           {/* Stats panel */}
-          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-6">
-            <div className="text-[10px] tracking-label uppercase text-neon mb-4">
+          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-6">
+            <div className="text-[10px] tracking-label uppercase text-neon mb-2 md:mb-3">
               Resumo Atual
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2 md:gap-3">
               <Stat icon={Users} label="Em Campo" value={onCourtPlayers.length} suffix="/5" />
               <Stat icon={Users} label="No Banco" value={benchPlayers.length} />
               <Stat icon={ArrowLeftRight} label="Substituições" value={subs.length} />
               <Stat icon={TimerIcon} label="Minutos Totais" value={formatTimeLong(totalMatchTime)} large />
             </div>
 
-            <div className="border-t border-white/10 mt-5 pt-4 flex items-center gap-3">
-              <Trophy size={16} className="text-neon" />
-              <div className="text-[11px] tracking-label uppercase text-white/55">
+            <div className="hidden md:flex border-t border-white/10 mt-3 md:mt-4 pt-2 md:pt-3 items-center gap-3">
+              <Trophy size={14} className="text-neon" />
+              <div className="text-[10px] tracking-label uppercase text-white/55 truncate">
                 {team.name} {match.venue && <>· {match.venue}</>}
               </div>
             </div>
@@ -1099,10 +1100,10 @@ function LiveMatch({ team, match, onEnd }) {
 
         {/* Substitution helper bar */}
         {(selectedOut || selectedIn) && !ended && (
-          <div className="mb-4 border border-neon/40 bg-[#161b05] rounded-sm p-4 flex items-center justify-between gap-3 fade-up">
-            <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
-              <ArrowLeftRight size={16} className="text-neon" />
-              <span className="font-display uppercase text-base">Substituição</span>
+          <div className="mb-2 md:mb-3 border border-neon/40 bg-[#161b05] rounded-sm p-2 md:p-3 flex items-center justify-between gap-2 md:gap-3 fade-up">
+            <div className="text-xs md:text-sm text-white/80 flex items-center gap-1.5 md:gap-2 flex-wrap">
+              <ArrowLeftRight size={14} className="text-neon shrink-0" />
+              <span className="font-display uppercase text-sm md:text-base">Substituição</span>
               <span className="text-white/50">·</span>
               {selectedOut ? (
                 <span>
@@ -1113,7 +1114,7 @@ function LiveMatch({ team, match, onEnd }) {
               ) : (
                 <span className="text-white/50">Seleciona um jogador em campo</span>
               )}
-              <ArrowRight size={14} className="text-white/40" />
+              <ArrowRight size={12} className="text-white/40" />
               {selectedIn ? (
                 <span>
                   <span className="text-neon uppercase">Entra:</span>{' '}
@@ -1129,19 +1130,19 @@ function LiveMatch({ team, match, onEnd }) {
                 setSelectedIn(null);
                 setSelectedOut(null);
               }}
-              className="text-white/60 hover:text-red-400 transition-colors"
+              className="text-white/60 hover:text-red-400 transition-colors shrink-0"
               aria-label="Cancelar"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
         )}
 
         {/* Players grids */}
-        <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4">
+        <section className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-2 md:gap-3">
           <div>
             <SectionHeader title="Em Campo" count={onCourtPlayers.length + emptySlots.length} accent />
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-2.5">
               {onCourtPlayers.map((p) => (
                 <PlayerCard
                   key={p.id}
@@ -1165,7 +1166,7 @@ function LiveMatch({ team, match, onEnd }) {
 
           <div>
             <SectionHeader title="Banco" count={benchPlayers.length} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 md:gap-2.5">
               {benchPlayers.map((p) => (
                 <PlayerCard
                   key={p.id}
@@ -1488,17 +1489,17 @@ function LiveMatch({ team, match, onEnd }) {
 
 function SectionHeader({ title, count, accent, icon: Icon = Users }) {
   return (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between mb-1.5 md:mb-2">
+      <div className="flex items-center gap-2 md:gap-3">
         <div
-          className={`w-7 h-7 flex items-center justify-center rounded-sm ${
+          className={`w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-sm ${
             accent ? 'bg-neon text-black' : 'bg-white/5 text-neon'
           }`}
         >
-          <Icon size={14} strokeWidth={2.5} />
+          <Icon size={12} strokeWidth={2.5} />
         </div>
-        <h3 className="font-display text-xl uppercase tracking-wide">{title}</h3>
-        <span className="text-[10px] tracking-label uppercase text-white/40">
+        <h3 className="font-display text-base md:text-lg uppercase tracking-wide">{title}</h3>
+        <span className="text-[9px] md:text-[10px] tracking-label uppercase text-white/40">
           {count} {count === 1 ? 'jogador' : 'jogadores'}
         </span>
       </div>
@@ -1508,13 +1509,13 @@ function SectionHeader({ title, count, accent, icon: Icon = Users }) {
 
 function Stat({ icon: Icon, label, value, suffix, large }) {
   return (
-    <div className="bg-black/40 border border-white/5 rounded-sm p-3">
-      <div className="flex items-center gap-2 text-[10px] tracking-label uppercase text-white/50 mb-2">
-        <Icon size={12} className="text-neon" /> {label}
+    <div className="bg-black/40 border border-white/5 rounded-sm p-2 md:p-2.5">
+      <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] tracking-label uppercase text-white/50 mb-1 md:mb-1.5">
+        <Icon size={11} className="text-neon" /> {label}
       </div>
-      <div className={`${large ? 'text-2xl' : 'text-3xl'} font-display text-white tabular-nums`}>
+      <div className={`${large ? 'text-lg md:text-xl' : 'text-xl md:text-2xl'} font-display text-white tabular-nums`}>
         {value}
-        {suffix && <span className="text-white/30 text-base ml-1">{suffix}</span>}
+        {suffix && <span className="text-white/30 text-sm ml-1">{suffix}</span>}
       </div>
     </div>
   );
@@ -1529,25 +1530,25 @@ function DisciplineTile({ label, hint, value, suffix, color, onAdd, disabled, wa
   };
   const c = colors[color] || colors.orange;
   return (
-    <div className={`border ${c.ring} ${c.bg} rounded-sm p-3 flex flex-col gap-2`}>
+    <div className={`border ${c.ring} ${c.bg} rounded-sm p-2 md:p-2.5 flex flex-col gap-1.5 md:gap-2`}>
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className={`text-[10px] tracking-label uppercase ${c.text}`}>{label}</div>
-          <div className={`text-[9px] uppercase tracking-wide mt-0.5 ${warn ? 'text-red-400 font-semibold' : 'text-white/45'}`}>
+        <div className="min-w-0">
+          <div className={`text-[9px] md:text-[10px] tracking-label uppercase truncate ${c.text}`}>{label}</div>
+          <div className={`text-[8px] md:text-[9px] uppercase tracking-wide mt-0.5 truncate ${warn ? 'text-red-400 font-semibold' : 'text-white/45'}`}>
             {hint}
           </div>
         </div>
-        <div className={`font-display text-3xl tabular-nums ${warn ? 'text-red-400' : 'text-white'}`}>
+        <div className={`font-display text-xl md:text-2xl lg:text-3xl tabular-nums shrink-0 ${warn ? 'text-red-400' : 'text-white'}`}>
           {value}
-          {suffix && <span className="text-white/30 text-base ml-0.5">{suffix}</span>}
+          {suffix && <span className="text-white/30 text-xs md:text-sm ml-0.5">{suffix}</span>}
         </div>
       </div>
       <button
         onClick={onAdd}
         disabled={disabled}
-        className={`mt-auto inline-flex items-center justify-center gap-1.5 border font-display text-xs uppercase tracking-wider px-3 py-2 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${c.btn}`}
+        className={`mt-auto inline-flex items-center justify-center gap-1 border font-display text-[10px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${c.btn}`}
       >
-        <Plus size={12} /> Adicionar
+        <Plus size={11} /> Adicionar
       </button>
     </div>
   );
@@ -1609,7 +1610,7 @@ function PlayerCard({ player, onClick, selected, onCourt, disabled }) {
       type="button"
       onClick={onClick}
       disabled={disabled || sentOff}
-      className={`text-left rounded-sm border p-4 transition-all disabled:cursor-not-allowed ${
+      className={`text-left rounded-sm border p-2 md:p-2.5 transition-all disabled:cursor-not-allowed ${
         sentOff
           ? 'border-red-500/40 bg-red-500/5 opacity-70'
           : selected
@@ -1621,9 +1622,9 @@ function PlayerCard({ player, onClick, selected, onCourt, disabled }) {
           : 'border-white/10 bg-[#0a0a0a] hover:border-white/25'
       } ${disabled && !sentOff ? 'opacity-50' : ''}`}
     >
-      <div className="flex items-start gap-3 mb-3">
+      <div className="flex items-start gap-2 md:gap-3 mb-1.5 md:mb-2">
         <div
-          className={`w-11 h-11 flex items-center justify-center rounded-sm font-display text-xl tabular-nums ${
+          className={`w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-sm font-display text-base md:text-lg tabular-nums shrink-0 ${
             sentOff ? 'bg-red-500/30 text-red-300 line-through' :
             onCourt ? 'bg-neon text-black' : 'bg-white/10 text-white/80'
           }`}
@@ -1631,42 +1632,42 @@ function PlayerCard({ player, onClick, selected, onCourt, disabled }) {
           {player.number}
         </div>
         <div className="flex-1 min-w-0">
-          <div className={`font-semibold text-sm uppercase tracking-wide truncate ${sentOff ? 'text-red-400' : ''}`}>
+          <div className={`font-semibold text-xs md:text-sm uppercase tracking-wide truncate ${sentOff ? 'text-red-400' : ''}`}>
             {player.name}
           </div>
-          <div className="text-[10px] tracking-label uppercase text-white/45 mt-0.5 flex items-center gap-2">
+          <div className="text-[9px] md:text-[10px] tracking-label uppercase text-white/45 mt-0.5 flex items-center gap-1.5">
             <span>{player.position}</span>
             {sentOff && (
               <span className="inline-flex items-center gap-1 text-red-400 font-semibold">
-                <span className="inline-block w-2 h-3 bg-red-500 rounded-[1px]" />
+                <span className="inline-block w-1.5 h-2.5 bg-red-500 rounded-[1px]" />
                 Expulso
               </span>
             )}
           </div>
         </div>
         {stintActive && !sentOff && (
-          <span className="w-2 h-2 rounded-full bg-red-500 live-dot mt-2" title="Em jogo" />
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 live-dot mt-1.5 shrink-0" title="Em jogo" />
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="bg-black/40 rounded-sm px-3 py-2">
-          <div className="text-[9px] tracking-label uppercase text-white/45">Total</div>
-          <div className="font-mono text-base text-neon tabular-nums">
+      <div className="grid grid-cols-2 gap-1.5 md:gap-2">
+        <div className="bg-black/40 rounded-sm px-2 py-1 md:px-2.5 md:py-1.5">
+          <div className="text-[8px] md:text-[9px] tracking-label uppercase text-white/45">Total</div>
+          <div className="font-mono text-sm md:text-base text-neon tabular-nums">
             {formatTime(player.totalTime)}
           </div>
         </div>
-        <div className="bg-black/40 rounded-sm px-3 py-2">
-          <div className="text-[9px] tracking-label uppercase text-white/45">
+        <div className="bg-black/40 rounded-sm px-2 py-1 md:px-2.5 md:py-1.5">
+          <div className="text-[8px] md:text-[9px] tracking-label uppercase text-white/45">
             {onCourt ? 'Parcial' : 'Último'}
           </div>
-          <div className="font-mono text-base text-white tabular-nums">
+          <div className="font-mono text-sm md:text-base text-white tabular-nums">
             {onCourt ? formatTime(player.currentStint) : formatTime(player.lastStintTime)}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-3 text-[10px] tracking-label uppercase text-white/40">
+      <div className="hidden md:flex items-center justify-between mt-2 text-[9px] tracking-label uppercase text-white/40">
         <span>Entradas: {player.stintsCount}</span>
         {sentOff ? <span className="text-red-400">Expulso</span> :
          onCourt ? <span className="text-neon">Em campo</span> : <span>Banco</span>}

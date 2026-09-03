@@ -156,11 +156,12 @@ export const exportMatchCSV = (team, match) => {
 
 // ---------- Season CSV ----------
 
-export const exportSeasonCSV = (team, aggregate, matches) => {
+export const exportSeasonCSV = (team, aggregate, matches, competitionLabel = null) => {
   const teamName = team?.name || 'Equipa';
   const rows = [];
   rows.push(['FUTSAL TIME HUB — ESTATÍSTICAS DA ÉPOCA']);
   rows.push(['Equipa', teamName]);
+  if (competitionLabel) rows.push(['Competição', competitionLabel]);
   rows.push(['Jogos registados', matches.length]);
   rows.push(['Exportado em', new Date().toLocaleString('pt-PT')]);
   rows.push([]);
@@ -191,7 +192,8 @@ export const exportSeasonCSV = (team, aggregate, matches) => {
   });
 
   const blob = new Blob(['\ufeff' + rowsToCsv(rows)], { type: 'text/csv;charset=utf-8' });
-  triggerDownload(blob, `epoca-${safeFilename(teamName)}-${safeFilename(new Date().toISOString().slice(0, 10))}.csv`);
+  const compSuffix = competitionLabel ? `-${safeFilename(competitionLabel)}` : '';
+  triggerDownload(blob, `epoca-${safeFilename(teamName)}${compSuffix}-${safeFilename(new Date().toISOString().slice(0, 10))}.csv`);
 };
 
 // ---------- PDF helpers ----------
@@ -403,10 +405,11 @@ export const exportMatchPDF = (team, match) => {
 
 // ---------- Season PDF ----------
 
-export const exportSeasonPDF = (team, aggregate, matches) => {
+export const exportSeasonPDF = (team, aggregate, matches, competitionLabel = null) => {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const teamName = team?.name || 'Equipa';
-  pdfHeader(doc, `Estatísticas — ${teamName}`, `${matches.length} jogos · ${new Date().toLocaleDateString('pt-PT')}`);
+  const title = competitionLabel ? `${teamName} — ${competitionLabel}` : `Estatísticas — ${teamName}`;
+  pdfHeader(doc, title, `${matches.length} jogos · ${new Date().toLocaleDateString('pt-PT')}`);
 
   const aggRows = aggregate.map((a) => [
     a.number, a.name, a.position || '',
@@ -452,5 +455,6 @@ export const exportSeasonPDF = (team, aggregate, matches) => {
   });
 
   pdfFooter(doc);
-  doc.save(`epoca-${safeFilename(teamName)}-${safeFilename(new Date().toISOString().slice(0, 10))}.pdf`);
+  const compSuffix = competitionLabel ? `-${safeFilename(competitionLabel)}` : '';
+  doc.save(`epoca-${safeFilename(teamName)}${compSuffix}-${safeFilename(new Date().toISOString().slice(0, 10))}.pdf`);
 };

@@ -23,6 +23,7 @@ export default function Estatisticas() {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  const [competitionFilter, setCompetitionFilter] = useState('all'); // 'all' | competition name
 
   useEffect(() => {
     if (!sessionUser) {
@@ -45,9 +46,26 @@ export default function Estatisticas() {
     })();
   }, [navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Unique competitions across all matches (skip empty)
+  const competitions = useMemo(() => {
+    const set = new Set();
+    matches.forEach((m) => {
+      const c = (m.competition || '').trim();
+      if (c) set.add(c);
+    });
+    return Array.from(set).sort();
+  }, [matches]);
+
+  // Matches filtered by selected competition
+  const filteredMatches = useMemo(() => {
+    if (competitionFilter === 'all') return matches;
+    if (competitionFilter === '__none__') return matches.filter((m) => !(m.competition || '').trim());
+    return matches.filter((m) => (m.competition || '').trim() === competitionFilter);
+  }, [matches, competitionFilter]);
+
   const aggregate = useMemo(() => {
     const stats = {};
-    matches.forEach((m) => {
+    filteredMatches.forEach((m) => {
       m.players.forEach((p) => {
         if (!stats[p.id]) {
           stats[p.id] = {
@@ -70,7 +88,7 @@ export default function Estatisticas() {
     return Object.values(stats)
       .map((s) => ({ ...s, plusMinus: s.goalsFor - s.goalsAgainst }))
       .sort((a, b) => b.totalTime - a.totalTime);
-  }, [matches]);
+  }, [filteredMatches]);
 
   if (!sessionUser) return null;
   if (loading || !team) {
@@ -116,49 +134,75 @@ export default function Estatisticas() {
           <div>
             <div className="text-neon text-[11px] tracking-label uppercase mb-2">Histórico</div>
             <h1 className="font-display text-4xl lg:text-5xl uppercase leading-none">
-              Jogos <span className="text-neon">·</span> {matches.length}
+              Jogos <span className="text-neon">·</span> {filteredMatches.length}
+              {competitionFilter !== 'all' && (
+                <span className="text-white/40 text-lg lg:text-2xl ml-3 tracking-normal">
+                  de {matches.length}
+                </span>
+              )}
             </h1>
             <p className="text-sm text-white/55 mt-3">
               Histórico completo de partidas, minutos por atleta e substituições.
             </p>
           </div>
-          {matches.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  data-testid="export-season-trigger"
-                  className="inline-flex items-center gap-2 bg-neon text-black font-display text-xs uppercase tracking-wider px-4 py-2.5 rounded-sm hover:bg-[#bbdc0d] transition-colors"
+          <div className="flex items-center gap-3 flex-wrap">
+            {competitions.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] tracking-label uppercase text-white/50">Competição</label>
+                <select
+                  data-testid="competition-filter"
+                  value={competitionFilter}
+                  onChange={(e) => setCompetitionFilter(e.target.value)}
+                  className="bg-[#141414] border border-white/10 text-white text-xs uppercase tracking-wide px-3 py-2 rounded-sm focus:border-neon outline-none cursor-pointer"
                 >
-                  <Download size={14} /> Exportar Época
-                  <ChevronDown size={14} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-[#0f0f0f] border-white/10 text-white">
-                <DropdownMenuLabel className="text-[10px] tracking-label uppercase text-white/50">Formato</DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-white/10" />
-                <DropdownMenuItem
-                  data-testid="export-season-csv"
-                  className="cursor-pointer focus:bg-neon/15 focus:text-neon"
-                  onClick={() => {
-                    exportSeasonCSV(team, aggregate, matches);
-                    toast.success('CSV DA ÉPOCA GERADO');
-                  }}
-                >
-                  <FileSpreadsheet size={14} className="mr-2" /> CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  data-testid="export-season-pdf"
-                  className="cursor-pointer focus:bg-neon/15 focus:text-neon"
-                  onClick={() => {
-                    exportSeasonPDF(team, aggregate, matches);
-                    toast.success('PDF DA ÉPOCA GERADO');
-                  }}
-                >
-                  <FileText size={14} className="mr-2" /> PDF
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+                  <option value="all">Todas</option>
+                  {competitions.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  <option value="__none__">Sem competição</option>
+                </select>
+              </div>
+            )}
+            {filteredMatches.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    data-testid="export-season-trigger"
+                    className="inline-flex items-center gap-2 bg-neon text-black font-display text-xs uppercase tracking-wider px-4 py-2.5 rounded-sm hover:bg-[#bbdc0d] transition-colors"
+                  >
+                    <Download size={14} /> {competitionFilter === 'all' ? 'Exportar Época' : 'Exportar Filtro'}
+                    <ChevronDown size={14} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-[#0f0f0f] border-white/10 text-white">
+                  <DropdownMenuLabel className="text-[10px] tracking-label uppercase text-white/50">
+                    {competitionFilter === 'all' ? 'Época completa' : `Competição: ${competitionFilter === '__none__' ? 'Sem competição' : competitionFilter}`}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem
+                    data-testid="export-season-csv"
+                    className="cursor-pointer focus:bg-neon/15 focus:text-neon"
+                    onClick={() => {
+                      exportSeasonCSV(team, aggregate, filteredMatches, competitionFilter === 'all' ? null : (competitionFilter === '__none__' ? 'Sem competição' : competitionFilter));
+                      toast.success('CSV GERADO');
+                    }}
+                  >
+                    <FileSpreadsheet size={14} className="mr-2" /> CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="export-season-pdf"
+                    className="cursor-pointer focus:bg-neon/15 focus:text-neon"
+                    onClick={() => {
+                      exportSeasonPDF(team, aggregate, filteredMatches, competitionFilter === 'all' ? null : (competitionFilter === '__none__' ? 'Sem competição' : competitionFilter));
+                      toast.success('PDF GERADO');
+                    }}
+                  >
+                    <FileText size={14} className="mr-2" /> PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
 
         {matches.length === 0 ? (
@@ -261,7 +305,12 @@ export default function Estatisticas() {
                 Jogos Registados
               </h2>
               <div className="space-y-3">
-                {matches.map((m) => {
+                {filteredMatches.length === 0 && (
+                  <div className="text-sm text-white/50 italic border border-dashed border-white/10 rounded-sm p-6 text-center">
+                    Nenhum jogo nesta competição.
+                  </div>
+                )}
+                {filteredMatches.map((m) => {
                   const isOpen = expanded === m.id;
                   return (
                     <div key={m.id} className="border border-white/10 bg-[#0f0f0f] rounded-sm overflow-hidden">

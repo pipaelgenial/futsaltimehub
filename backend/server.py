@@ -344,7 +344,7 @@ async def remove_user(user_id: str, current=Depends(get_admin_user)):
 
 
 @api_router.post("/admin/users/{user_id}/password", response_model=UserOut)
-async def reset_password(user_id: str, payload: PasswordReset, current=Depends(get_admin_user)):
+async def admin_reset_password(user_id: str, payload: PasswordReset, current=Depends(get_admin_user)):
     new_hash = hash_password(payload.password)
     result = await db.users.update_one({"_id": user_id}, {"$set": {"password_hash": new_hash}})
     if result.matched_count == 0:
