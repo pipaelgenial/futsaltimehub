@@ -8,7 +8,7 @@ import {
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import {
-  apiGetTeam, apiListAthletes, apiSaveMatch,
+  apiGetTeam, apiListAthletes, apiSaveMatch, apiListCompetitions,
   getActiveMatch, setActiveMatch, clearActiveMatch, getSessionUser,
   HALF_DURATION,
 } from '../lib/api';
@@ -64,8 +64,16 @@ function CreateMatchForm({ team, roster, onCreated }) {
   const [competition, setCompetition] = useState('');
   const [matchday, setMatchday] = useState('');
   const [venue, setVenue] = useState('');
+  const [competitions, setCompetitions] = useState([]);
   // selectedOrder: array of player IDs in selection order. First 5 = court, rest = bench.
   const [selectedOrder, setSelectedOrder] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      const r = await apiListCompetitions();
+      if (r.ok) setCompetitions(r.competitions);
+    })();
+  }, []);
 
   const courtIds = selectedOrder.slice(0, 5);
   const benchIds = selectedOrder.slice(5);
@@ -109,7 +117,7 @@ function CreateMatchForm({ team, roster, onCreated }) {
     const match = {
       id: Date.now(),
       opponent: opponent.trim().toUpperCase(),
-      competition: competition.trim().toUpperCase(),
+      competition: competition.trim(),
       matchday: matchday.trim(),
       venue: venue.trim(),
       date: new Date().toISOString(),
@@ -179,7 +187,29 @@ function CreateMatchForm({ team, roster, onCreated }) {
               </div>
               <div className="space-y-4">
                 <Field label="Equipa Adversária *" value={opponent} onChange={setOpponent} placeholder="BENFICA" upper />
-                <Field label="Competição" value={competition} onChange={setCompetition} placeholder="LIGA PLACARD" upper />
+                <div>
+                  <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Competição</label>
+                  <div className="flex gap-2">
+                    <select
+                      data-testid="competition-select"
+                      value={competition}
+                      onChange={(e) => setCompetition(e.target.value)}
+                      className="flex-1 bg-[#141414] border border-white/10 px-4 py-2.5 text-sm outline-none focus:border-neon focus:bg-[#181818] rounded-sm uppercase tracking-wide cursor-pointer"
+                    >
+                      <option value="">— Sem competição —</option>
+                      {competitions.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
+                    <Link
+                      to="/competicoes"
+                      className="border border-white/10 hover:border-neon text-white/60 hover:text-neon text-[10px] tracking-label uppercase px-3 py-2.5 rounded-sm transition-colors flex items-center gap-1.5"
+                      title="Gerir competições"
+                    >
+                      <Trophy size={12} /> Gerir
+                    </Link>
+                  </div>
+                </div>
                 <Field label="Jornada (n.º)" value={matchday} onChange={setMatchday} placeholder="14" type="number" />
                 <Field label="Pavilhão / Local" value={venue} onChange={setVenue} placeholder="Pavilhão João Rocha" />
               </div>

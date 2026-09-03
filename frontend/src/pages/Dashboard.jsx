@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
-import { Timer, Users, BarChart3, LogOut, ChevronRight, Shield, Trash2, RotateCcw, Loader2 } from 'lucide-react';
+import { Timer, Users, BarChart3, LogOut, ChevronRight, Shield, Trash2, RotateCcw, Loader2, Trophy } from 'lucide-react';
 import {
   apiLogout, getSessionUser, apiGetTeam, apiListAthletes, apiListMatches, apiDeleteTeam,
   getActiveMatch, clearActiveMatch,
@@ -100,6 +100,13 @@ export default function Dashboard() {
       icon: BarChart3,
       to: '/estatisticas',
       cta: 'Analisar',
+    },
+    {
+      title: 'Competições',
+      desc: 'Gere as competições onde a tua equipa joga.',
+      icon: Trophy,
+      to: '/competicoes',
+      cta: 'Gerir',
     },
   ];
 

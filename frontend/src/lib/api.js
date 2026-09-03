@@ -214,6 +214,52 @@ export const apiDeleteMatch = async (id) => {
   }
 };
 
+export const apiUpdateMatch = async (id, patch) => {
+  try {
+    const { data } = await client.patch(`/matches/${id}`, patch);
+    return { ok: true, match: data };
+  } catch (e) {
+    return { ok: false, error: extractError(e) };
+  }
+};
+
+// ============ COMPETITIONS ============
+export const apiListCompetitions = async () => {
+  try {
+    const { data } = await client.get('/competitions');
+    return { ok: true, competitions: data };
+  } catch (e) {
+    return { ok: false, error: extractError(e) };
+  }
+};
+
+export const apiCreateCompetition = async ({ name, color }) => {
+  try {
+    const { data } = await client.post('/competitions', { name, color });
+    return { ok: true, competition: data };
+  } catch (e) {
+    return { ok: false, error: extractError(e) };
+  }
+};
+
+export const apiUpdateCompetition = async (id, patch) => {
+  try {
+    const { data } = await client.patch(`/competitions/${id}`, patch);
+    return { ok: true, competition: data };
+  } catch (e) {
+    return { ok: false, error: extractError(e) };
+  }
+};
+
+export const apiDeleteCompetition = async (id) => {
+  try {
+    await client.delete(`/competitions/${id}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: extractError(e) };
+  }
+};
+
 // ============ LOCAL (active match stays in localStorage) ============
 const ACTIVE_KEY = 'flh_active_match';
 export const getActiveMatch = () => {

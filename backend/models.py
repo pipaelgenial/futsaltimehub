@@ -133,3 +133,47 @@ class MatchOut(BaseModel):
     fouls: List[Dict[str, Any]]
     cards: List[Dict[str, Any]]
     created_at: datetime
+
+
+class MatchUpdate(BaseModel):
+    """Partial update for a saved match (metadata + events).
+
+    Any field can be omitted. When provided, replaces the existing value entirely.
+    Player stints/times are NOT edited here — only match metadata and event arrays.
+    """
+    opponent: Optional[str] = None
+    competition: Optional[str] = None
+    matchday: Optional[str] = None
+    venue: Optional[str] = None
+    date: Optional[str] = None
+    home_score: Optional[int] = None
+    away_score: Optional[int] = None
+    fouls_committed: Optional[int] = None
+    fouls_suffered: Optional[int] = None
+    yellow_cards: Optional[int] = None
+    red_cards: Optional[int] = None
+    subs: Optional[List[Dict[str, Any]]] = None
+    goals: Optional[List[Dict[str, Any]]] = None
+    fouls: Optional[List[Dict[str, Any]]] = None
+    cards: Optional[List[Dict[str, Any]]] = None
+    players: Optional[List[Dict[str, Any]]] = None
+
+
+# ============ COMPETITION ============
+
+class CompetitionCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=48)
+    color: Optional[str] = "#d4ff1a"
+
+
+class CompetitionUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=48)
+    color: Optional[str] = None
+
+
+class CompetitionOut(BaseModel):
+    id: str
+    owner_id: str
+    name: str
+    color: str
+    created_at: datetime

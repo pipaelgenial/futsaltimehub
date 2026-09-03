@@ -10,6 +10,8 @@ import Dashboard from './pages/Dashboard';
 import Monitor from './pages/Monitor';
 import Plantel from './pages/Plantel';
 import Estatisticas from './pages/Estatisticas';
+import EditMatch from './pages/EditMatch';
+import Competitions from './pages/Competitions';
 import Admin from './pages/Admin';
 import { Toaster } from './components/ui/sonner';
 
@@ -31,6 +33,8 @@ function App() {
           <Route path="/monitor" element={<Monitor />} />
           <Route path="/plantel" element={<Plantel />} />
           <Route path="/estatisticas" element={<Estatisticas />} />
+          <Route path="/estatisticas/editar/:id" element={<EditMatch />} />
+          <Route path="/competicoes" element={<Competitions />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

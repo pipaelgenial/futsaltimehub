@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square, Loader2, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square, Loader2, Download, FileText, FileSpreadsheet, Pencil } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { apiGetTeam, apiListMatches, apiDeleteMatch, getSessionUser } from '../lib/api';
@@ -400,6 +400,17 @@ export default function Estatisticas() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/estatisticas/editar/${m.id}`);
+                            }}
+                            className="text-white/40 hover:text-neon p-2"
+                            title="Editar"
+                            data-testid={`edit-match-${m.id}`}
+                          >
+                            <Pencil size={14} />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

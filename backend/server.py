@@ -13,7 +13,8 @@ from models import (
     UserCreate, UserLogin, UserOut, UserUpdate, PasswordReset, TokenResponse,
     TeamCreate, TeamOut,
     AthleteCreate, AthleteOut,
-    MatchSave, MatchOut,
+    MatchSave, MatchOut, MatchUpdate,
+    CompetitionCreate, CompetitionUpdate, CompetitionOut,
 )
 from auth import (
     hash_password, verify_password, create_access_token, decode_token,
@@ -107,6 +108,16 @@ def _to_match_out(doc: dict) -> dict:
         "goals": doc.get("goals", []),
         "fouls": doc.get("fouls", []),
         "cards": doc.get("cards", []),
+        "created_at": doc.get("created_at", datetime.utcnow()),
+    }
+
+
+def _to_competition_out(doc: dict) -> dict:
+    return {
+        "id": doc["_id"],
+        "owner_id": doc["owner_id"],
+        "name": doc.get("name", ""),
+        "color": doc.get("color", "#d4ff1a"),
         "created_at": doc.get("created_at", datetime.utcnow()),
     }
 
@@ -470,6 +481,124 @@ async def remove_match(match_id: str, current=Depends(get_current_user)):
     })
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Jogo não encontrado")
+    return None
+
+
+@api_router.patch("/matches/{match_id}", response_model=MatchOut)
+async def update_match(match_id: str, patch: MatchUpdate, current=Depends(get_current_user)):
+    """Update a saved match (metadata and/or event arrays).
+
+    When goals/fouls/cards/subs are provided, they replace the stored arrays entirely.
+    Player totals (scored, assists, goalsFor, goalsAgainst, foulsCommitted, cards)
+    are recomputed from the new event arrays so that Estatísticas stay consistent.
+    """
+    update_doc = {k: v for k, v in patch.dict(exclude_unset=True).items() if v is not None}
+    if not update_doc:
+        raise HTTPException(status_code=400, detail="Sem alterações")
+
+    # Load current doc for recompute
+    doc = await db.matches.find_one({"_id": match_id, "owner_id": current["_id"]})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Jogo não encontrado")
+
+    merged = {**doc, **update_doc}
+
+    # Recompute per-player event counters from event arrays if any event was edited
+    events_edited = any(k in update_doc for k in ("goals", "fouls", "cards"))
+    if events_edited or "players" in update_doc:
+        goals = merged.get("goals", []) or []
+        fouls = merged.get("fouls", []) or []
+        cards = merged.get("cards", []) or []
+        players = merged.get("players", []) or []
+        recomputed = []
+        for p in players:
+            pid = p.get("id")
+            scored = sum(1 for g in goals if g.get("type") == "home" and g.get("scorerId") == pid)
+            assists = sum(1 for g in goals if g.get("type") == "home" and g.get("assistId") == pid)
+            fouls_committed_p = sum(1 for f in fouls if f.get("type") == "committed" and f.get("playerId") == pid)
+            yellow = sum(1 for c in cards if c.get("type") == "yellow" and c.get("playerId") == pid)
+            red = sum(1 for c in cards if c.get("type") == "red" and c.get("playerId") == pid)
+            recomputed.append({**p, "scored": scored, "assists": assists, "foulsCommitted": fouls_committed_p, "yellowCards": yellow, "redCards": red})
+        update_doc["players"] = recomputed
+        # Also recompute team-level totals when events changed but user didn't override them
+        if events_edited:
+            if "fouls_committed" not in update_doc:
+                update_doc["fouls_committed"] = sum(1 for f in fouls if f.get("type") == "committed")
+            if "fouls_suffered" not in update_doc:
+                update_doc["fouls_suffered"] = sum(1 for f in fouls if f.get("type") == "suffered")
+            if "yellow_cards" not in update_doc:
+                update_doc["yellow_cards"] = sum(1 for c in cards if c.get("type") == "yellow")
+            if "red_cards" not in update_doc:
+                update_doc["red_cards"] = sum(1 for c in cards if c.get("type") == "red")
+            if "home_score" not in update_doc:
+                update_doc["home_score"] = sum(1 for g in goals if g.get("type") == "home")
+            if "away_score" not in update_doc:
+                update_doc["away_score"] = sum(1 for g in goals if g.get("type") == "away")
+
+    await db.matches.update_one({"_id": match_id}, {"$set": update_doc})
+    updated = await db.matches.find_one({"_id": match_id})
+    return _to_match_out(updated)
+
+
+# ============================================================
+# COMPETITION ROUTES (user-scoped)
+# ============================================================
+
+@api_router.get("/competitions", response_model=List[CompetitionOut])
+async def list_competitions(current=Depends(get_current_user)):
+    docs = await db.competitions.find({"owner_id": current["_id"]}).sort("name", 1).to_list(200)
+    return [_to_competition_out(d) for d in docs]
+
+
+@api_router.post("/competitions", response_model=CompetitionOut, status_code=201)
+async def create_competition(payload: CompetitionCreate, current=Depends(get_current_user)):
+    import uuid
+    name = payload.name.strip()
+    # Prevent duplicates (case-insensitive)
+    existing = await db.competitions.find_one({
+        "owner_id": current["_id"],
+        "name_lower": name.lower(),
+    })
+    if existing:
+        raise HTTPException(status_code=409, detail="Já existe uma competição com esse nome")
+    doc = {
+        "_id": str(uuid.uuid4()),
+        "owner_id": current["_id"],
+        "name": name,
+        "name_lower": name.lower(),
+        "color": payload.color or "#d4ff1a",
+        "created_at": datetime.utcnow(),
+    }
+    await db.competitions.insert_one(doc)
+    return _to_competition_out(doc)
+
+
+@api_router.patch("/competitions/{competition_id}", response_model=CompetitionOut)
+async def update_competition(competition_id: str, patch: CompetitionUpdate, current=Depends(get_current_user)):
+    update_doc = {k: v for k, v in patch.dict(exclude_unset=True).items() if v is not None}
+    if not update_doc:
+        raise HTTPException(status_code=400, detail="Sem alterações")
+    if "name" in update_doc:
+        update_doc["name"] = update_doc["name"].strip()
+        update_doc["name_lower"] = update_doc["name"].lower()
+    result = await db.competitions.update_one(
+        {"_id": competition_id, "owner_id": current["_id"]},
+        {"$set": update_doc},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Competição não encontrada")
+    doc = await db.competitions.find_one({"_id": competition_id})
+    return _to_competition_out(doc)
+
+
+@api_router.delete("/competitions/{competition_id}", status_code=204)
+async def remove_competition(competition_id: str, current=Depends(get_current_user)):
+    result = await db.competitions.delete_one({
+        "_id": competition_id,
+        "owner_id": current["_id"],
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Competição não encontrada")
     return None
 
 
