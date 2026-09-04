@@ -64,6 +64,8 @@ function CreateMatchForm({ team, roster, onCreated }) {
   const [competition, setCompetition] = useState('');
   const [matchday, setMatchday] = useState('');
   const [venue, setVenue] = useState('');
+  const [halfDurationMin, setHalfDurationMin] = useState(20);
+  const [clockMode, setClockMode] = useState('down'); // 'down' | 'up'
   const [competitions, setCompetitions] = useState([]);
   // selectedOrder: array of player IDs in selection order. First 5 = court, rest = bench.
   const [selectedOrder, setSelectedOrder] = useState([]);
@@ -114,6 +116,7 @@ function CreateMatchForm({ team, roster, onCreated }) {
         stints: idx < 5 ? [{ inHalf: 1, inMinute: 0, outHalf: null, outMinute: null, duration: 0 }] : [],
       }));
 
+    const halfSec = Math.max(60, Math.min(60 * 60, Math.round(Number(halfDurationMin) * 60)));
     const match = {
       id: Date.now(),
       opponent: opponent.trim().toUpperCase(),
@@ -121,6 +124,8 @@ function CreateMatchForm({ team, roster, onCreated }) {
       matchday: matchday.trim(),
       venue: venue.trim(),
       date: new Date().toISOString(),
+      halfDurationSec: halfSec,
+      clockMode, // 'down' | 'up'
       players: selected,
       subs: [],
       half: 1,
@@ -212,6 +217,45 @@ function CreateMatchForm({ team, roster, onCreated }) {
                 </div>
                 <Field label="Jornada (n.º)" value={matchday} onChange={setMatchday} placeholder="14" type="number" />
                 <Field label="Pavilhão / Local" value={venue} onChange={setVenue} placeholder="Pavilhão João Rocha" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Duração cada parte (min)</label>
+                    <input
+                      data-testid="half-duration-input"
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={halfDurationMin}
+                      onChange={(e) => setHalfDurationMin(e.target.value)}
+                      className="w-full bg-[#141414] border border-white/10 px-4 py-2.5 text-sm outline-none focus:border-neon rounded-sm uppercase tracking-wide"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Cronómetro</label>
+                    <div className="grid grid-cols-2 gap-1.5 bg-[#141414] border border-white/10 rounded-sm p-1">
+                      <button
+                        type="button"
+                        data-testid="clock-mode-down"
+                        onClick={() => setClockMode('down')}
+                        className={`text-[10px] tracking-label uppercase py-2 rounded-sm transition-colors ${
+                          clockMode === 'down' ? 'bg-neon text-black' : 'text-white/60 hover:text-white'
+                        }`}
+                      >
+                        Decrescente
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="clock-mode-up"
+                        onClick={() => setClockMode('up')}
+                        className={`text-[10px] tracking-label uppercase py-2 rounded-sm transition-colors ${
+                          clockMode === 'up' ? 'bg-neon text-black' : 'text-white/60 hover:text-white'
+                        }`}
+                      >
+                        Crescente
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="border-t border-white/10 mt-5 pt-4 grid grid-cols-2 gap-3 text-center">
@@ -346,6 +390,8 @@ function Field({ label, value, onChange, placeholder, type = 'text', upper = fal
 
 function LiveMatch({ team, match, onEnd }) {
   const navigate = useNavigate();
+  const halfDuration = match.halfDurationSec || HALF_DURATION;
+  const clockMode = match.clockMode || 'down';
   const [players, setPlayers] = useState(match.players);
   const [subs, setSubs] = useState(match.subs);
   const [goals, setGoals] = useState(match.goals || []);
@@ -382,7 +428,7 @@ function LiveMatch({ team, match, onEnd }) {
     if (!running || ended) return;
     tickRef.current = setInterval(() => {
       setElapsedHalf((t) => {
-        if (t + 1 >= HALF_DURATION) {
+        if (t + 1 >= halfDuration) {
           // half ended automatically
           clearInterval(tickRef.current);
           setRunning(false);
@@ -390,7 +436,7 @@ function LiveMatch({ team, match, onEnd }) {
             description: half === 1 ? 'Pronto para iniciar a 2.ª parte.' : 'Jogo terminado. Pode gravar.',
           });
           if (half === 2) setEnded(true);
-          return HALF_DURATION;
+          return halfDuration;
         }
         return t + 1;
       });
@@ -415,9 +461,11 @@ function LiveMatch({ team, match, onEnd }) {
     () => players.reduce((acc, p) => acc + p.totalTime, 0),
     [players]
   );
-  const remaining = HALF_DURATION - elapsedHalf;
+  const remaining = halfDuration - elapsedHalf;
   const halfFinished = remaining <= 0;
   const isLast30 = remaining > 0 && remaining <= 30;
+  // Clock display: 'down' shows time remaining, 'up' shows time elapsed
+  const clockDisplay = clockMode === 'up' ? elapsedHalf : remaining;
 
   const toggleClock = () => {
     if (ended) return;
@@ -439,7 +487,7 @@ function LiveMatch({ team, match, onEnd }) {
         prev.map((p) => {
           const stints = (p.stints || []).map((s, i, arr) =>
             i === arr.length - 1 && s.outHalf === null
-              ? { ...s, outHalf: 1, outMinute: HALF_DURATION, duration: p.currentStint }
+              ? { ...s, outHalf: 1, outMinute: halfDuration, duration: p.currentStint }
               : s
           );
           if (p.onCourt) {
@@ -937,49 +985,108 @@ function LiveMatch({ team, match, onEnd }) {
       </header>
 
       <main className="flex-1 px-3 md:px-5 lg:px-8 py-3 md:py-5 max-w-[1500px] mx-auto w-full">
-        {/* Scoreboard */}
-        <section className="mb-2 md:mb-3 border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 md:gap-4 lg:gap-6">
-            {/* Home */}
-            <div className="text-right">
-              <div className="font-display text-base md:text-xl lg:text-2xl uppercase truncate">{team.name}</div>
-              <button
-                onClick={openGoalScorerPicker}
-                disabled={ended || onCourtPlayers.length === 0}
-                className="mt-1.5 md:mt-2 inline-flex items-center gap-1.5 bg-neon text-black font-display text-xs md:text-sm uppercase tracking-wider px-2.5 md:px-4 py-1.5 md:py-2 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Plus size={13} /> Golo
-              </button>
-            </div>
-
-            {/* Score */}
-            <div className="text-center">
-              <div className="text-[9px] md:text-[10px] tracking-label uppercase text-white/50 mb-0.5 md:mb-1">Resultado</div>
-              <div className="font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl tabular-nums leading-none flex items-center gap-2 md:gap-3 lg:gap-5">
-                <span className={homeScore > awayScore ? 'text-neon' : 'text-white'}>{homeScore}</span>
-                <span className="text-white/30 text-2xl md:text-3xl lg:text-5xl">·</span>
-                <span className={awayScore > homeScore ? 'text-red-400' : 'text-white'}>{awayScore}</span>
-              </div>
-              {goals.length > 0 && !ended && (
+        {/* Scoreboard + Cronómetro (side-by-side) */}
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3 mb-2 md:mb-3">
+          {/* Scoreboard */}
+          <div className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:gap-3">
+              {/* Home */}
+              <div className="text-right min-w-0">
+                <div className="font-display text-sm md:text-base lg:text-lg uppercase truncate">{team.name}</div>
                 <button
-                  onClick={undoLastGoal}
-                  className="mt-1 md:mt-2 text-[9px] md:text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors"
-                  title="Anular último golo"
+                  onClick={openGoalScorerPicker}
+                  disabled={ended || onCourtPlayers.length === 0}
+                  className="mt-1.5 md:mt-2 inline-flex items-center gap-1 bg-neon text-black font-display text-[11px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1 md:py-1.5 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  ↶ Anular Último
+                  <Plus size={11} /> Golo
                 </button>
-              )}
+              </div>
+
+              {/* Score */}
+              <div className="text-center px-1 md:px-2">
+                <div className="text-[9px] md:text-[10px] tracking-label uppercase text-white/50 mb-0.5">Resultado</div>
+                <div className="font-display text-4xl md:text-5xl lg:text-6xl tabular-nums leading-none flex items-center gap-1.5 md:gap-2 lg:gap-3">
+                  <span className={homeScore > awayScore ? 'text-neon' : 'text-white'}>{homeScore}</span>
+                  <span className="text-white/30 text-xl md:text-2xl lg:text-3xl">·</span>
+                  <span className={awayScore > homeScore ? 'text-red-400' : 'text-white'}>{awayScore}</span>
+                </div>
+                {goals.length > 0 && !ended && (
+                  <button
+                    onClick={undoLastGoal}
+                    className="mt-1 text-[9px] md:text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors"
+                    title="Anular último golo"
+                  >
+                    ↶ Anular
+                  </button>
+                )}
+              </div>
+
+              {/* Away */}
+              <div className="min-w-0">
+                <div className="font-display text-sm md:text-base lg:text-lg uppercase truncate">{match.opponent}</div>
+                <button
+                  onClick={() => !ended && recordGoal('away')}
+                  disabled={ended}
+                  className="mt-1.5 md:mt-2 inline-flex items-center gap-1 bg-red-500/15 border border-red-500/40 text-red-300 font-display text-[11px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1 md:py-1.5 rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus size={11} /> <span className="hidden sm:inline">Golo</span> Adv.
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Cronómetro */}
+          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+            <div className="flex items-center justify-between mb-1.5 md:mb-2">
+              <div className="min-w-0">
+                <div className="text-[10px] tracking-label uppercase text-neon mb-0.5">
+                  Cronómetro · {clockMode === 'down' ? 'Decrescente' : 'Crescente'}
+                </div>
+                <div className="text-[11px] text-white/55 uppercase tracking-wide truncate">
+                  {half === 1 ? '1.ª Parte' : '2.ª Parte'} · {Math.round(halfDuration / 60)}:00 min
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`inline-block w-2 h-2 rounded-full ${
+                    ended ? 'bg-white/30' : running ? 'bg-red-500 live-dot' : 'bg-white/30'
+                  }`}
+                />
+                <span className="text-[9px] md:text-[10px] tracking-label uppercase text-white/60">
+                  {ended ? 'Terminado' : running ? 'AO VIVO' : halfFinished ? 'Fim' : 'Pausa'}
+                </span>
+              </div>
             </div>
 
-            {/* Away */}
-            <div>
-              <div className="font-display text-base md:text-xl lg:text-2xl uppercase truncate">{match.opponent}</div>
+            <div
+              data-testid="live-clock"
+              className={`font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-none tracking-tight tabular-nums ${
+                clockMode === 'down' && isLast30 ? 'text-red-400' : 'text-neon neon-text'
+              }`}
+            >
+              {formatTime(clockDisplay)}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 md:gap-2 mt-2 md:mt-3">
               <button
-                onClick={() => !ended && recordGoal('away')}
-                disabled={ended}
-                className="mt-1.5 md:mt-2 inline-flex items-center gap-1.5 bg-red-500/15 border border-red-500/40 text-red-300 font-display text-xs md:text-sm uppercase tracking-wider px-2.5 md:px-4 py-1.5 md:py-2 rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={toggleClock}
+                disabled={ended || halfFinished}
+                className={`flex-1 min-w-[100px] font-display text-xs md:text-sm uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  running
+                    ? 'bg-white/10 text-white hover:bg-white/15'
+                    : 'bg-neon text-black hover:bg-[#bbdc0d]'
+                }`}
               >
-                <Plus size={13} /> <span className="hidden sm:inline">Golo</span> Adversário
+                {running ? <Pause size={13} /> : <Play size={13} />}
+                {running ? 'Pausar' : 'Iniciar'}
+              </button>
+              <button
+                onClick={goNextHalf}
+                disabled={ended}
+                className="flex-1 min-w-[100px] font-display text-xs md:text-sm uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm bg-white/5 border border-white/10 text-white hover:border-neon transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={13} />
+                {half === 1 ? 'Fim 1.ª' : 'Terminar'}
               </button>
             </div>
           </div>
@@ -1039,92 +1146,6 @@ function LiveMatch({ team, match, onEnd }) {
               onAdd={() => openCardPicker('red')}
               disabled={ended || onCourtPlayers.length === 0}
             />
-          </div>
-        </section>
-
-        {/* Control panel */}
-        <section className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-2 md:gap-3 mb-2 md:mb-3">
-          {/* Big clock - COUNTDOWN */}
-          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-5 lg:p-6">
-            <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div>
-                <div className="text-[10px] tracking-label uppercase text-neon mb-0.5 md:mb-1">
-                  Cronómetro · Contagem Decrescente
-                </div>
-                <div className="text-[11px] md:text-xs text-white/55 uppercase tracking-wide">
-                  {half === 1 ? '1.ª Parte' : '2.ª Parte'} · 20:00 min
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-block w-2 h-2 rounded-full ${
-                    ended ? 'bg-white/30' : running ? 'bg-red-500 live-dot' : 'bg-white/30'
-                  }`}
-                />
-                <span className="text-[10px] tracking-label uppercase text-white/60">
-                  {ended ? 'Terminado' : running ? 'AO VIVO' : halfFinished ? 'Fim da Parte' : 'Em Pausa'}
-                </span>
-              </div>
-            </div>
-
-            <div
-              className={`font-display text-5xl md:text-6xl lg:text-7xl xl:text-8xl leading-none tracking-tight tabular-nums ${
-                isLast30 ? 'text-red-400' : 'text-neon neon-text'
-              }`}
-            >
-              {formatTime(remaining)}
-            </div>
-
-            <div className="flex flex-wrap gap-2 md:gap-3 mt-3 md:mt-4">
-              <button
-                onClick={toggleClock}
-                disabled={ended || halfFinished}
-                className={`flex-1 min-w-[120px] md:min-w-[150px] font-display text-sm md:text-base lg:text-lg uppercase tracking-wider px-3 md:px-5 py-2 md:py-2.5 rounded-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed ${
-                  running
-                    ? 'bg-white/10 text-white hover:bg-white/15'
-                    : 'bg-neon text-black hover:bg-[#bbdc0d]'
-                }`}
-              >
-                {running ? <Pause size={16} /> : <Play size={16} />}
-                {running ? 'Pausar' : 'Iniciar'}
-              </button>
-              <button
-                onClick={goNextHalf}
-                disabled={ended}
-                className="flex-1 min-w-[120px] md:min-w-[150px] font-display text-sm md:text-base lg:text-lg uppercase tracking-wider px-3 md:px-5 py-2 md:py-2.5 rounded-sm bg-white/5 border border-white/10 text-white hover:border-neon transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronRight size={16} />
-                {half === 1 ? 'Fim 1.ª Parte' : 'Terminar Jogo'}
-              </button>
-              {ended ? (
-                <button
-                  onClick={saveCurrentMatch}
-                  className="font-display text-sm md:text-base lg:text-lg uppercase tracking-wider px-3 md:px-5 py-2 md:py-2.5 rounded-sm bg-neon text-black hover:bg-[#bbdc0d] transition-colors flex items-center justify-center gap-2"
-                >
-                  <Save size={16} /> Gravar
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Stats panel */}
-          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-6">
-            <div className="text-[10px] tracking-label uppercase text-neon mb-2 md:mb-3">
-              Resumo Atual
-            </div>
-            <div className="grid grid-cols-2 gap-2 md:gap-3">
-              <Stat icon={Users} label="Em Campo" value={onCourtPlayers.length} suffix="/5" />
-              <Stat icon={Users} label="No Banco" value={benchPlayers.length} />
-              <Stat icon={ArrowLeftRight} label="Substituições" value={subs.length} />
-              <Stat icon={TimerIcon} label="Minutos Totais" value={formatTimeLong(totalMatchTime)} large />
-            </div>
-
-            <div className="hidden md:flex border-t border-white/10 mt-3 md:mt-4 pt-2 md:pt-3 items-center gap-3">
-              <Trophy size={14} className="text-neon" />
-              <div className="text-[10px] tracking-label uppercase text-white/55 truncate">
-                {team.name} {match.venue && <>· {match.venue}</>}
-              </div>
-            </div>
           </div>
         </section>
 
