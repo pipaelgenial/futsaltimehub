@@ -478,7 +478,7 @@ function LiveMatch({ team, match, onEnd }) {
       );
     }, 1000);
     return () => clearInterval(tickRef.current);
-  }, [running, ended, half]);
+  }, [running, ended, half, halfDuration]);
 
   const onCourtPlayers = useMemo(() => players.filter((p) => p.onCourt), [players]);
   const benchPlayers = useMemo(() => players.filter((p) => !p.onCourt), [players]);
