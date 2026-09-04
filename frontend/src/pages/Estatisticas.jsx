@@ -23,7 +23,8 @@ export default function Estatisticas() {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
-  const [competitionFilter, setCompetitionFilter] = useState('all'); // 'all' | competition name
+  const [competitionFilter, setCompetitionFilter] = useState('all'); // 'all' | competition name | '__none__'
+  const [matchFilter, setMatchFilter] = useState('all'); // 'all' | match id
 
   useEffect(() => {
     if (!sessionUser) {
@@ -57,11 +58,22 @@ export default function Estatisticas() {
   }, [matches]);
 
   // Matches filtered by selected competition
-  const filteredMatches = useMemo(() => {
+  const matchesByCompetition = useMemo(() => {
     if (competitionFilter === 'all') return matches;
     if (competitionFilter === '__none__') return matches.filter((m) => !(m.competition || '').trim());
     return matches.filter((m) => (m.competition || '').trim() === competitionFilter);
   }, [matches, competitionFilter]);
+
+  // Additional narrowing to a single match (used by aggregate + per-match list)
+  const filteredMatches = useMemo(() => {
+    if (matchFilter === 'all') return matchesByCompetition;
+    return matchesByCompetition.filter((m) => m.id === matchFilter);
+  }, [matchesByCompetition, matchFilter]);
+
+  // When competition changes, reset match selection to 'all' (avoid stale selection)
+  useEffect(() => {
+    setMatchFilter('all');
+  }, [competitionFilter]);
 
   const aggregate = useMemo(() => {
     const stats = {};
@@ -163,6 +175,28 @@ export default function Estatisticas() {
                 </select>
               </div>
             )}
+            {matchesByCompetition.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] tracking-label uppercase text-white/50">Jogo</label>
+                <select
+                  data-testid="match-filter"
+                  value={matchFilter}
+                  onChange={(e) => setMatchFilter(e.target.value)}
+                  className="bg-[#141414] border border-white/10 text-white text-xs uppercase tracking-wide px-3 py-2 rounded-sm focus:border-neon outline-none cursor-pointer max-w-[280px]"
+                >
+                  <option value="all">Todos ({matchesByCompetition.length})</option>
+                  {matchesByCompetition.map((m) => {
+                    const d = new Date(m.date).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
+                    const score = typeof m.home_score === 'number' ? `${m.home_score}-${m.away_score}` : '';
+                    return (
+                      <option key={m.id} value={m.id}>
+                        {d} · vs {m.opponent} {score && `(${score})`}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
             {filteredMatches.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -227,7 +261,14 @@ export default function Estatisticas() {
                 <span className="w-7 h-7 bg-neon text-black flex items-center justify-center rounded-sm">
                   <Trophy size={14} />
                 </span>
-                Atletas · Minutos, Golos & Disciplina (Total)
+                Atletas · Minutos, Golos & Disciplina
+                <span className="text-white/40 text-sm normal-case tracking-normal ml-2">
+                  {matchFilter !== 'all'
+                    ? '(jogo selecionado)'
+                    : competitionFilter === 'all'
+                    ? '(todos os jogos)'
+                    : `(${filteredMatches.length} ${filteredMatches.length === 1 ? 'jogo' : 'jogos'})`}
+                </span>
               </h2>
               <div className="border border-white/10 rounded-sm overflow-x-auto">
                 <table className="w-full text-sm min-w-[720px]">
