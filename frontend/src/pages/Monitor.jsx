@@ -217,43 +217,68 @@ function CreateMatchForm({ team, roster, onCreated }) {
                 </div>
                 <Field label="Jornada (n.º)" value={matchday} onChange={setMatchday} placeholder="14" type="number" />
                 <Field label="Pavilhão / Local" value={venue} onChange={setVenue} placeholder="Pavilhão João Rocha" />
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Duração cada parte (min)</label>
+                <div>
+                  <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">
+                    Duração de cada parte
+                  </label>
+                  <div className="flex items-stretch gap-2">
                     <input
                       data-testid="half-duration-input"
                       type="number"
                       min={1}
                       max={60}
+                      step={1}
                       value={halfDurationMin}
                       onChange={(e) => setHalfDurationMin(e.target.value)}
-                      className="w-full bg-[#141414] border border-white/10 px-4 py-2.5 text-sm outline-none focus:border-neon rounded-sm uppercase tracking-wide"
+                      className="flex-1 bg-[#141414] border border-white/10 px-4 py-2.5 text-sm outline-none focus:border-neon focus:bg-[#181818] rounded-sm uppercase tracking-wide"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">Cronómetro</label>
-                    <div className="grid grid-cols-2 gap-1.5 bg-[#141414] border border-white/10 rounded-sm p-1">
-                      <button
-                        type="button"
-                        data-testid="clock-mode-down"
-                        onClick={() => setClockMode('down')}
-                        className={`text-[10px] tracking-label uppercase py-2 rounded-sm transition-colors ${
-                          clockMode === 'down' ? 'bg-neon text-black' : 'text-white/60 hover:text-white'
-                        }`}
-                      >
-                        Decrescente
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="clock-mode-up"
-                        onClick={() => setClockMode('up')}
-                        className={`text-[10px] tracking-label uppercase py-2 rounded-sm transition-colors ${
-                          clockMode === 'up' ? 'bg-neon text-black' : 'text-white/60 hover:text-white'
-                        }`}
-                      >
-                        Crescente
-                      </button>
+                    <div className="flex items-center px-3 border border-white/10 bg-black/40 rounded-sm text-[10px] tracking-label uppercase text-white/60">
+                      minutos
                     </div>
+                  </div>
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {[10, 15, 20, 25].map((n) => (
+                      <button
+                        type="button"
+                        key={n}
+                        data-testid={`preset-${n}`}
+                        onClick={() => setHalfDurationMin(String(n))}
+                        className={`text-[10px] tracking-label uppercase px-2.5 py-1 rounded-sm border transition-colors ${
+                          Number(halfDurationMin) === n
+                            ? 'bg-neon text-black border-neon'
+                            : 'border-white/10 text-white/55 hover:border-neon hover:text-neon'
+                        }`}
+                      >
+                        {n} min
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] tracking-label uppercase text-white/60 mb-2">
+                    Modo do cronómetro
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 bg-[#141414] border border-white/10 rounded-sm p-1">
+                    <button
+                      type="button"
+                      data-testid="clock-mode-down"
+                      onClick={() => setClockMode('down')}
+                      className={`text-xs tracking-label uppercase py-2.5 rounded-sm transition-colors font-display ${
+                        clockMode === 'down' ? 'bg-neon text-black' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      ▼ Decrescente
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="clock-mode-up"
+                      onClick={() => setClockMode('up')}
+                      className={`text-xs tracking-label uppercase py-2.5 rounded-sm transition-colors font-display ${
+                        clockMode === 'up' ? 'bg-neon text-black' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      ▲ Crescente
+                    </button>
                   </div>
                 </div>
               </div>
@@ -977,9 +1002,10 @@ function LiveMatch({ team, match, onEnd }) {
           <button
             onClick={resetMatch}
             className="text-xs uppercase tracking-label text-white/55 hover:text-red-400 flex items-center gap-2"
-            title="Cancelar jogo"
+            title="Terminar este jogo sem gravar e voltar a CRIAR JOGO"
+            data-testid="cancel-match-btn"
           >
-            <X size={14} /> Cancelar
+            <X size={14} /> Cancelar / Novo Jogo
           </button>
         </div>
       </header>

@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend-only testing of the 'cronómetro editável no CRIAR JOGO' bug fix on /monitor (preview URL) with treinador@futsal.pt. Verified: half-duration input visible/editable/persisting, 4 quick presets (10/15/20/25) updating input + bg-neon highlight, clock mode toggle (down/up) mutual exclusivity, and two full E2E flows (8 min + Crescente; 25 min + Decrescente) including live clock tick. Also tested clamping edge cases (empty and 99 min). All targeted bug-fix scenarios PASS — the fields ARE editable and the values propagate into the LiveMatch clock.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Monitor > SectionHeader (LiveMatch)", "issue": "Count suffix is hardcoded to 'JOGADORES': the 'MARCADOR · GOLOS' and 'HISTÓRICO DE SUBSTITUIÇÕES' sections read '0 JOGADORES' instead of 'GOLOS'/'SUBSTITUIÇÕES'. Cosmetic copy bug.", "selector": "section header text", "priority": "LOW"},
+      {"component": "CreateMatchForm", "issue": "Missing data-testid on several interactive elements: opponent input (only reachable via placeholder 'BENFICA'), roster player selection buttons, 'INICIAR JOGO' button, and the Iniciar/Pausar + 'Fim 1.ª' buttons in LiveMatch. Tests had to fall back to text/placeholder selectors.", "selector": "input[placeholder='BENFICA'], roster buttons, Iniciar Jogo", "priority": "LOW"},
+      {"component": "half-duration-input", "issue": "Out-of-range / empty values are silently clamped only at submit time (99 -> 60:00, empty -> 01:00). Input still shows 99 / empty, so the user gets no feedback that the value was changed. Consider clamping on blur or showing a hint.", "selector": "[data-testid='half-duration-input']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "No functional fix required for the reported bug — duration input, presets and clock-mode toggle all work and are reflected in the live clock (verified 8 min/Crescente starts at 00:00 and counts up; 25 min/Decrescente starts at 25:00 and counts down).",
+    "Optional: fix hardcoded 'JOGADORES' suffix in SectionHeader for Golos/Substituições sections.",
+    "Optional: add data-testid to opponent input, roster player buttons, 'INICIAR JOGO', clock play/pause.",
+    "Optional: give visible feedback when duration is clamped (empty -> 1 min, >60 -> 60 min).",
+    "Note: /app/memory/test_credentials.md says treinador@futsal.pt has 'Sem equipa configurada', but the account actually has team 'BENFICA TESTE' with 10 athletes — update the credentials file."
+  ],
+  "critical_code_review_comments": [
+    "Monitor.jsx is ~1600 lines and mixes CreateMatchForm + LiveMatch + pickers + tables; should be split into modules (>700 line rule).",
+    "LiveMatch tick effect depends on [running, ended, half] but reads halfDuration from closure — currently fine since halfDuration is immutable per match, but add it to the deps array to avoid future staleness."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "not tested", "frontend": "100% of targeted bug-fix scenarios passed" },
+  "seed_data_creation": "Created only local (localStorage) matches vs TESTE E2E / TESTE E2E2 / TESTE EDGE / TESTE EDGE2; all cleared via localStorage.removeItem('flh_active_match'). No matches were saved to the backend.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "treinador@futsal.pt / treinador123 (has team BENFICA TESTE + 10 athletes)",
+  "context_for_next_testing_agent": "Login page has no data-testids; use input[type=email]/input[type=password]/button[type=submit]. Before /monitor always run localStorage.removeItem('flh_active_match'). Relevant testids: half-duration-input, preset-10/15/20/25, clock-mode-down, clock-mode-up, live-clock, competition-select. Roster player buttons and 'INICIAR JOGO' have no testid — select by role+text. Verified results: presets set input value and get bg-neon; clock modes toggle exclusively; E2E 8min/up -> 00:00 counting up, 25min/down -> 25:00 counting down; clamping empty->1min, 99->60min.",
+  "rca_of_the_issue": "Could not reproduce the user's report that the cronómetro is not editable. The input (data-testid='half-duration-input'), the 4 presets and the two clock-mode buttons are all present, visible, enabled and update state correctly, and halfDurationSec/clockMode are correctly consumed by LiveMatch. Most likely the user had a pre-existing active match in localStorage ('flh_active_match'), which makes /monitor render LiveMatch directly and skip the CRIAR JOGO configuration screen entirely — so the new fields were never seen. Recommendation: on the LiveMatch screen surface the configured duration/mode (already shown in the Cronómetro label) and/or add an explicit hint/entry point to cancel the ongoing match and reconfigure."
+}
