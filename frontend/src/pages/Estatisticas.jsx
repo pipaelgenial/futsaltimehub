@@ -4,7 +4,7 @@ import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar,
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { apiGetTeam, apiListMatches, apiDeleteMatch, getSessionUser } from '../lib/api';
-import { formatTime, formatTimeLong, formatCountdown } from '../lib/time';
+import { formatTime, formatTimeLong, formatCountdown, getMatchDuration } from '../lib/time';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -397,7 +397,7 @@ export default function Estatisticas() {
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="text-right hidden sm:block">
                             <div className="text-[10px] tracking-label uppercase text-white/50">Duração</div>
-                            <div className="font-mono text-neon">{formatTimeLong(m.total_duration || 0)}</div>
+                            <div className="font-mono text-neon">{formatTimeLong(getMatchDuration(m))}</div>
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

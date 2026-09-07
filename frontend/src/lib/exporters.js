@@ -3,7 +3,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { formatTime, formatTimeLong, formatCountdown } from './time';
+import { formatTime, formatTimeLong, formatCountdown, getMatchDuration } from './time';
 
 // ---------- CSV helpers ----------
 
@@ -55,7 +55,7 @@ export const exportMatchCSV = (team, match) => {
   if (typeof match.home_score === 'number') {
     rows.push(['Resultado', `${match.home_score} - ${match.away_score}`]);
   }
-  rows.push(['Duração', formatTimeLong(match.total_duration || 0)]);
+  rows.push(['Duração', formatTimeLong(getMatchDuration(match))]);
   rows.push(['Faltas Marcadas', match.fouls_committed ?? 0]);
   rows.push(['Faltas Sofridas', match.fouls_suffered ?? 0]);
   rows.push(['Cartões Amarelos', match.yellow_cards ?? 0]);
@@ -186,7 +186,7 @@ export const exportSeasonCSV = (team, aggregate, matches, competitionLabel = nul
       fmtDate(m.date), m.opponent || '',
       m.competition || '', m.matchday || '',
       typeof m.home_score === 'number' ? `${m.home_score}-${m.away_score}` : '—',
-      formatTimeLong(m.total_duration || 0),
+      formatTimeLong(getMatchDuration(m)),
       (m.goals || []).length, (m.fouls || []).length, (m.cards || []).length, (m.subs || []).length,
     ]);
   });
@@ -269,7 +269,7 @@ export const exportMatchPDF = (team, match) => {
     doc.setTextColor(...GREY);
     const verdict = isWin ? 'VITÓRIA' : isDraw ? 'EMPATE' : 'DERROTA';
     doc.text(verdict, 60, y - 2);
-    doc.text(`Duração: ${formatTimeLong(match.total_duration || 0)}`, 60, y + 4);
+    doc.text(`Duração: ${formatTimeLong(getMatchDuration(match))}`, 60, y + 4);
     y += 10;
   }
 
@@ -442,7 +442,7 @@ export const exportSeasonPDF = (team, aggregate, matches, competitionLabel = nul
     fmtDate(m.date), m.opponent || '',
     m.competition || '—', m.matchday || '—',
     typeof m.home_score === 'number' ? `${m.home_score}-${m.away_score}` : '—',
-    formatTimeLong(m.total_duration || 0),
+    formatTimeLong(getMatchDuration(m)),
     (m.goals || []).length,
     (m.fouls || []).length,
     (m.cards || []).length,

@@ -600,7 +600,8 @@ function LiveMatch({ team, match, onEnd }) {
       fouls_suffered: foulsSuffered,
       yellow_cards: yellowCards,
       red_cards: redCards,
-      total_duration: totalMatchTime,
+      // Real clocked match time: full halves finished + current elapsed on ongoing half
+      total_duration: (half - 1) * halfDuration + elapsedHalf,
       half_reached: half,
       players: playerStats,
       subs,
