@@ -1,0 +1,60 @@
+{
+  "summary": "Frontend E2E testing of EditMatch improvements (HalfTimeDuration bug fix, Tempos & Parciais editor, auto-sync subs→stints) and Monitor setup. HalfDuration bug is FIXED — MinuteInput respects match.halfDurationSec (fallback 1200). New Tempos & Parciais section renders with data-testid='stints-player-<id>' and 'rebuild-stints-btn'. Editing a stint's mm:ss recalculates duration and total. Save-to-backend correctly persists players[].stints and players[].totalTime. HOWEVER a CRITICAL BUG was found: clicking Remover on the first substitution actually removes ALL substitutions, because subs loaded from the backend have no `id` field, so `filter(e => e.id !== eventId)` in EditMatch.removeEvent removes every entry whose id is undefined. Same bug will affect patchEvent for subs (and probably goals/fouls/cards loaded from backend). Monitor setup screen (half duration, presets, clock mode toggle) is functional.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "EditMatch — Substituições (also affects Golos/Faltas/Cartões coming from backend)",
+        "issue": "Remover em UMA substituição apaga TODAS as substituições. Causa: subs vindos do backend não têm campo `id`, e removeEvent/patchEvent fazem `filter(e => e.id !== eventId)` — com eventId=undefined e todos e.id=undefined, o filtro remove todos. Reproduzido no jogo 'BENFICA TESTE vs RIVAL FC EDITADO': antes tinha 5 subs; depois de clicar em Remover da 1.ª sub, ficaram 0 subs (removeBtnCount 5→0). Após Gravar, backend também gravou subsCount=0. Alto risco de perda de dados.",
+        "selector": "button[title=\"Remover\"] dentro da section Substituições / event handlers em EditMatch.jsx: removeEvent (linha ~160), patchEvent (linha ~167)",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "EditMatch — MinuteInput",
+        "issue": "Quando o utilizador escreve um valor mm:ss acima do halfDuration (e.g. '25:00' com halfDuration=20min), o commit converte para 0s (=20:00 remaining) corretamente MAS o input continua a mostrar '25:00' porque o useEffect que ressincroniza o texto só corre quando o `value` prop muda; se já era 0s, permanece igual e o texto local desatualizado. Cosmético (o valor real ficou clampado a 20:00), mas confunde o utilizador.",
+        "selector": "MinuteInput em /app/frontend/src/pages/EditMatch.jsx (linhas ~721-748)",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Monitor — half-duration-input",
+        "issue": "O input aceita valores fora do intervalo 1-60 (ex.: 65 e 0 ficam no input). Provavelmente clamp só ocorre no submit — não crítico, mas UX inconsistente com o requisito.",
+        "selector": "[data-testid=\"half-duration-input\"]",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "EditMatch → PATCH /api/matches/{id} → GET /api/matches",
+        "issue": "Save persiste players[].stints e players[].totalTime corretamente (verificado). No entanto, devido ao bug acima, o auto-rebuild removeu todos os subs e os totais foram recalculados assumindo apenas H1/H2 starters — o backend guardou subs=[] e totais 40:00/20:00/0 conforme a nova reconstrução. Funcionalmente o pipeline players→backend está OK; o problema é o gatilho errado.",
+        "affected_selectors": ["button[title=\"Remover\"] em Substituições", "[data-testid=\"save-match-btn\"]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Estatisticas",
+        "issues": [
+          "Hydration warnings no console: <span> como filho de <option> (Estatisticas.jsx linha 187) e <button> aninhado dentro de <button> (linha 358/404). Não bloqueia mas polui console e é warning React oficial."
+        ]
+      }
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_2.json"],
+  "action_items": [
+    "CRÍTICO: Em EditMatch.jsx, garantir que subs (e goals/fouls/cards) recebem um id único ao carregar do backend. Ex.: no useEffect, `subs: (m.subs || []).map((s,i)=>({ id: s.id || `sub-${i}-${crypto.randomUUID?.()||Date.now()}`, ...s }))` e idem para goals/fouls/cards. Alternativamente, no backend PATCH/POST /api/matches, atribuir ids estáveis quando ausentes.",
+    "MinuteInput: quando `commit()` clampa o valor mas o `value` prop resultante não muda, forçar re-sync do texto local. Solução simples: no `commit()` fazer `setText(formatted)` após `onChange(...)`.",
+    "Monitor: aplicar clamp (1-60) no half-duration-input onChange/onBlur para consistência UX.",
+    "Estatisticas.jsx: remover elementos inválidos (span dentro de option; button dentro de button) para eliminar hydration warnings."
+  ],
+  "critical_code_review_comments": [
+    "EditMatch.jsx removeEvent/patchEvent dependem de e.id — quebra silenciosa quando dados vindos do backend não têm id. Precisa de normalização de ids em load.",
+    "Auto-rebuild em updateSubs sobrescreve stints editados manualmente pelo utilizador: se um utilizador editar parciais e depois adicionar uma sub, os parciais editados são perdidos. Considerar merge ou aviso.",
+    "MinuteInput duplica lógica de conversão elapsed↔remaining; extrair para util em /lib/time.js."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped)", "frontend": "70%" },
+  "seed_data_creation": "Nenhum. Usado jogo pré-existente 'BENFICA TESTE vs RIVAL FC EDITADO' (id b0d28a3e-e5db-43f0-aa8a-217762228f63) com 5 subs. NOTA: após o teste, este jogo ficou com subsCount=0 e stints recalculados (dados alterados no backend por causa do bug). Considere fazer reseed antes de re-testar.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login treinador@futsal.pt/treinador123. O jogo BENFICA TESTE vs RIVAL FC EDITADO ficou com 0 subs após este teste — fazer reseed dos subs (ou criar jogo novo) antes de re-verificar o fix do bug crítico. Verificar em particular: (1) clicar Remover em UMA sub deve remover apenas essa, não todas; (2) editar minuto ou jogador de UMA sub deve alterar apenas essa; (3) o mesmo para goals/fouls/cards carregados do backend. data-testids relevantes: rebuild-stints-btn, stints-player-<id>, save-match-btn, half-duration-input, preset-10/15/20/25, clock-mode-down/up.",
+  "rca of the issue": "EditMatch usa e.id para identificar eventos ao remover/editar. Os subs criados durante o jogo (fluxo Monitor) são gravados no backend sem id. Ao carregar em EditMatch, todos os subs partilham `id === undefined`. `filter(e => e.id !== eventId)` com eventId undefined remove todos. Reproduzido: pré-teste 5 subs → clicar 1× em Remover → 0 subs. Mitigação: normalizar ids ao carregar (crypto.randomUUID) em useEffect após apiListMatches, ou atribuir ids no backend."
+}

@@ -116,7 +116,7 @@ function CreateMatchForm({ team, roster, onCreated }) {
         stints: idx < 5 ? [{ inHalf: 1, inMinute: 0, outHalf: null, outMinute: null, duration: 0 }] : [],
       }));
 
-    const halfSec = Math.max(60, Math.min(60 * 60, Math.round(Number(halfDurationMin) * 60)));
+    const halfSec = Math.max(60, Math.min(60 * 60, Math.round((Number(halfDurationMin) || 20) * 60)));
     const match = {
       id: Date.now(),
       opponent: opponent.trim().toUpperCase(),
@@ -230,6 +230,11 @@ function CreateMatchForm({ team, roster, onCreated }) {
                       step={1}
                       value={halfDurationMin}
                       onChange={(e) => setHalfDurationMin(e.target.value)}
+                      onBlur={(e) => {
+                        const raw = Number(e.target.value);
+                        const n = Math.max(1, Math.min(60, Math.round(Number.isFinite(raw) ? raw : 20)));
+                        setHalfDurationMin(String(n));
+                      }}
                       className="flex-1 bg-[#141414] border border-white/10 px-4 py-2.5 text-sm outline-none focus:border-neon focus:bg-[#181818] rounded-sm uppercase tracking-wide"
                     />
                     <div className="flex items-center px-3 border border-white/10 bg-black/40 rounded-sm text-[10px] tracking-label uppercase text-white/60">

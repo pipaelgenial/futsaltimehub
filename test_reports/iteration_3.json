@@ -1,0 +1,41 @@
+{
+  "summary": "Retest of iteration 2 fixes on EditMatch + Monitor. CRITICAL BUG FROM ITER 2 IS FIXED: removing one substitution now removes only that entry (5 subs → 4, verified via DOM count). MinuteInput visual clamp is FIXED: typing '25:00' into a sub minute field with halfDuration=20:00 resyncs the input to '20:00' on blur. Stints editor 'Tempos & Parciais' renders with 10 [data-testid^=stints-player-*] wrappers and [data-testid=rebuild-stints-btn]. Monitor half-duration upper clamp works (99 → 60). Only one remaining minor bug: Monitor lower clamp — typing 0 collapses to 20 instead of 1, because the onBlur uses `Number(e.target.value) || 20` and 0 is falsy. Hydration warning from Estatisticas.jsx/EditMatch.jsx (span inside <option>) still shows in console (not blocking).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Monitor — half-duration-input onBlur",
+        "issue": "Ao escrever 0 e sair (blur), o valor vira 20 em vez de 1. Causa: `Math.max(1, Math.min(60, Math.round(Number(e.target.value) || 20)))` — como Number('0') === 0 é falsy, o `|| 20` transforma-o em 20 antes do clamp. Fix sugerido: substituir por `const n = Number(e.target.value); const clamped = Math.max(1, Math.min(60, Math.round(Number.isFinite(n) ? n : 20)));`",
+        "selector": "[data-testid=\"half-duration-input\"] em /app/frontend/src/pages/Monitor.jsx linha 234",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "EditMatch / Estatisticas",
+        "issues": [
+          "Hydration warning persiste: <span> dentro de <option> (ver EditMatch.jsx linha 784 no componente PlayerSelect e Estatisticas.jsx). Não bloqueia mas polui consola."
+        ]
+      }
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_3.json"],
+  "action_items": [
+    "Corrigir lower-clamp de half-duration-input em Monitor.jsx (linha 234): usar Number.isFinite para permitir 0 → 1 em vez de 0 → 20.",
+    "Remover <span> dentro de <option> em PlayerSelect (EditMatch.jsx ~linha 784) e em Estatisticas.jsx para eliminar hydration warnings."
+  ],
+  "critical_code_review_comments": [
+    "Normalização de ids ao carregar match está bem implementada (EditMatch.jsx linhas 100-110) — inclui subs/goals/fouls/cards. Bom.",
+    "MinuteInput.commit agora faz setText(clamped) sempre — resolve o bug visual. Bom.",
+    "updateSubs recalcula stints via rebuildStintsFromSubs — mas ainda sobrescreve edições manuais do utilizador nos stints se depois este mexer nas subs. Considerar aviso ou merge inteligente."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "95%"},
+  "test_credentials": "treinador@futsal.pt / treinador123 — match id b0d28a3e-e5db-43f0-aa8a-217762228f63 tem 5 subs com ids preservados no backend.",
+  "seed_data_creation": "Nenhum criado. Não gravei alterações no jogo — apenas testes locais no cliente (não cliquei em Gravar).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Bug crítico de remover subs está resolvido. O único bug restante é cosmético (Monitor half-duration lower clamp para 0). MinuteInput visual clamp verificado com '25:00' → '20:00'. Stints editor renderiza corretamente. Save-flow end-to-end não foi re-executado nesta iteração para evitar reintroduzir alterações no jogo seed — main agent pode testar diretamente.",
+  "rca of the issue": "CRITICAL bug de iter 2 (remover 1 sub apagava todas) RESOLVIDO: EditMatch.jsx useEffect agora atribui id único a cada entry de subs/goals/fouls/cards ao carregar do backend (linhas 100-110). Verificado por DOM count: 5 → 4 após clicar em Remover. Bug remanescente em Monitor: 0 é falsy, o operador `||` substitui por 20 antes do clamp; deve usar Number.isFinite."
+}

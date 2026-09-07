@@ -59,11 +59,11 @@ const buildSampleMatch = (athletes, teamName) => {
     };
   });
   const subs = [
-    { half: 1, minute: 720, out: { id: p(7).id, number: 7, name: p(7).name }, in: { id: p(10).id, number: 10, name: p(10).name } },
-    { half: 1, minute: 720, out: { id: p(9).id, number: 9, name: p(9).name }, in: { id: p(8).id, number: 8, name: p(8).name } },
-    { half: 2, minute: 300, out: { id: p(4).id, number: 4, name: p(4).name }, in: { id: p(5).id, number: 5, name: p(5).name } },
-    { half: 2, minute: 960, out: { id: p(11).id, number: 11, name: p(11).name }, in: { id: p(7).id, number: 7, name: p(7).name } },
-    { half: 2, minute: 960, out: { id: p(8).id, number: 8, name: p(8).name }, in: { id: p(9).id, number: 9, name: p(9).name } },
+    { id: 'sub-h1-1', half: 1, minute: 720, out: { id: p(7).id, number: 7, name: p(7).name }, in: { id: p(10).id, number: 10, name: p(10).name } },
+    { id: 'sub-h1-2', half: 1, minute: 720, out: { id: p(9).id, number: 9, name: p(9).name }, in: { id: p(8).id, number: 8, name: p(8).name } },
+    { id: 'sub-h2-1', half: 2, minute: 300, out: { id: p(4).id, number: 4, name: p(4).name }, in: { id: p(5).id, number: 5, name: p(5).name } },
+    { id: 'sub-h2-2', half: 2, minute: 960, out: { id: p(11).id, number: 11, name: p(11).name }, in: { id: p(7).id, number: 7, name: p(7).name } },
+    { id: 'sub-h2-3', half: 2, minute: 960, out: { id: p(8).id, number: 8, name: p(8).name }, in: { id: p(9).id, number: 9, name: p(9).name } },
   ];
   const goals = [
     { id: 'g1', half: 1, minute: 300, type: 'home', scorerId: p(9).id, scorerNumber: 9, scorerName: p(9).name, assistId: p(7).id, assistNumber: 7, assistName: p(7).name },
