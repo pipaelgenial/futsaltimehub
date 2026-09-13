@@ -620,13 +620,15 @@ function LiveMatch({ team, match, onEnd }) {
     setTimeout(() => navigate('/estatisticas'), 800);
   };
 
-  const recordGoal = (type, scorer = null) => {
+  const recordGoal = (type, scorer = null, atHalf = null, atMinute = null) => {
+    const eventHalf = atHalf ?? half;
+    const eventMinute = atMinute ?? elapsedHalf;
     const courtIds = players.filter((p) => p.onCourt).map((p) => p.id);
     const goal = {
       id: Date.now() + Math.random(),
       type, // 'home' | 'away'
-      minute: elapsedHalf,
-      half,
+      minute: eventMinute,
+      half: eventHalf,
       scorerId: scorer ? scorer.id : null,
       scorerName: scorer ? scorer.name : null,
       scorerNumber: scorer ? scorer.number : null,
@@ -641,9 +643,9 @@ function LiveMatch({ team, match, onEnd }) {
       toast.success('GOLO ' + team.name, {
         description: scorer ? `${scorer.number} ${scorer.name.toUpperCase()}` : 'Sem marcador',
       });
-      // If scorer identified, open assister picker
+      // If scorer identified, open assister picker (also capture the event time)
       if (scorer) {
-        setTimeout(() => openAssisterPicker(goal.id, scorer.id), 250);
+        setTimeout(() => openAssisterPicker(goal.id, scorer.id, eventHalf, eventMinute), 250);
       }
     } else {
       // Futsal rule: when opponent scores, the 2-min penalty ends - the team can immediately bring a substitute
@@ -654,7 +656,7 @@ function LiveMatch({ team, match, onEnd }) {
     }
   };
 
-  const openAssisterPicker = (goalId, scorerId) => {
+  const openAssisterPicker = (goalId, scorerId, atHalf = null, atMinute = null) => {
     if (ended) return;
     // Qualquer jogador em campo pode assistir, incluindo o guarda-redes
     const eligible = players.filter((p) => p.onCourt && !p.sentOff && p.id !== scorerId);
@@ -665,11 +667,13 @@ function LiveMatch({ team, match, onEnd }) {
       players: eligible,
       allowNone: true,
       accent: 'neon',
-      onPick: (p) => recordAssist(goalId, p),
+      onPick: (p) => recordAssist(goalId, p, atHalf, atMinute),
     });
   };
 
-  const recordAssist = (goalId, assister) => {
+  const recordAssist = (goalId, assister, atHalf = null, atMinute = null) => {
+    // atHalf/atMinute are informational for future use (assist logs share goal timestamp)
+    void atHalf; void atMinute;
     setGoals((gs) =>
       gs.map((g) =>
         g.id === goalId
@@ -697,13 +701,15 @@ function LiveMatch({ team, match, onEnd }) {
     toast.message('GOLO ANULADO');
   };
 
-  const recordFoul = (type, committer = null) => {
+  const recordFoul = (type, committer = null, atHalf = null, atMinute = null) => {
+    const eventHalf = atHalf ?? half;
+    const eventMinute = atMinute ?? elapsedHalf;
     const courtIds = players.filter((p) => p.onCourt).map((p) => p.id);
     const foul = {
       id: Date.now() + Math.random(),
       type, // 'committed' | 'suffered'
-      minute: elapsedHalf,
-      half,
+      minute: eventMinute,
+      half: eventHalf,
       playerId: committer ? committer.id : null,
       playerName: committer ? committer.name : null,
       playerNumber: committer ? committer.number : null,
@@ -727,13 +733,13 @@ function LiveMatch({ team, match, onEnd }) {
     toast.message('FALTA ANULADA');
   };
 
-  const recordCard = (type, player) => {
+  const recordCard = (type, player, atHalf = null, atMinute = null) => {
     if (!player) return;
     const card = {
       id: Date.now() + Math.random(),
       type, // 'yellow' | 'red'
-      minute: elapsedHalf,
-      half,
+      minute: atMinute ?? elapsedHalf,
+      half: atHalf ?? half,
       playerId: player.id,
       playerName: player.name,
       playerNumber: player.number,
@@ -874,6 +880,9 @@ function LiveMatch({ team, match, onEnd }) {
   const openGoalScorerPicker = () => {
     const eligible = onCourtPlayers.filter((p) => !p.sentOff);
     if (ended || eligible.length === 0) return;
+    // Freeze event timestamp at click time so the picker delay doesn't drift it
+    const atHalf = half;
+    const atMinute = elapsedHalf;
     setPendingPicker({
       kind: 'goal',
       title: 'Quem marcou?',
@@ -881,13 +890,15 @@ function LiveMatch({ team, match, onEnd }) {
       players: eligible,
       allowNone: true,
       accent: 'neon',
-      onPick: (p) => recordGoal('home', p),
+      onPick: (p) => recordGoal('home', p, atHalf, atMinute),
     });
   };
 
   const openFoulCommitterPicker = () => {
     const eligible = onCourtPlayers.filter((p) => !p.sentOff);
     if (ended || eligible.length === 0) return;
+    const atHalf = half;
+    const atMinute = elapsedHalf;
     setPendingPicker({
       kind: 'foul',
       title: 'Falta marcada por',
@@ -895,7 +906,7 @@ function LiveMatch({ team, match, onEnd }) {
       players: eligible,
       allowNone: true,
       accent: 'orange',
-      onPick: (p) => recordFoul('committed', p),
+      onPick: (p) => recordFoul('committed', p, atHalf, atMinute),
     });
   };
 
@@ -907,6 +918,8 @@ function LiveMatch({ team, match, onEnd }) {
       toast.error('SEM JOGADORES EM CAMPO');
       return;
     }
+    const atHalf = half;
+    const atMinute = elapsedHalf;
     setPendingPicker({
       kind: cardType === 'yellow' ? 'yellow' : 'red',
       title: cardType === 'yellow' ? 'Cartão Amarelo para' : 'Cartão Vermelho para',
@@ -916,7 +929,7 @@ function LiveMatch({ team, match, onEnd }) {
       players: eligible,
       allowNone: false,
       accent: cardType === 'yellow' ? 'yellow' : 'red',
-      onPick: (p) => recordCard(cardType, p),
+      onPick: (p) => recordCard(cardType, p, atHalf, atMinute),
     });
   };
 
@@ -1497,13 +1510,26 @@ function LiveMatch({ team, match, onEnd }) {
           >
             <div className="flex items-start justify-between mb-5">
               <div>
-                <div className={`text-[10px] tracking-label uppercase mb-1 ${
+                <div className={`text-[10px] tracking-label uppercase mb-1 flex items-center gap-2 ${
                   pendingPicker.accent === 'red' ? 'text-red-400' :
                   pendingPicker.accent === 'yellow' ? 'text-yellow-300' :
                   pendingPicker.accent === 'orange' ? 'text-orange-400' :
                   'text-neon'
                 }`}>
-                  {half}.ª Parte · {formatCountdown(elapsedHalf)}
+                  <span>{half}.ª Parte</span>
+                  <span className="text-white/30">·</span>
+                  <span
+                    data-testid="picker-live-clock"
+                    className="font-mono text-base tabular-nums text-white"
+                  >
+                    {formatCountdown(elapsedHalf, halfDuration)}
+                  </span>
+                  {running && !ended && (
+                    <span className="inline-flex items-center gap-1 ml-1 text-[9px] text-red-400 uppercase tracking-label">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 live-dot" />
+                      AO VIVO
+                    </span>
+                  )}
                 </div>
                 <h3 className="font-display text-2xl uppercase">{pendingPicker.title}</h3>
                 <div className="text-xs text-white/55 mt-1">{pendingPicker.subtitle}</div>
