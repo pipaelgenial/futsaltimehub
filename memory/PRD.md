@@ -20,6 +20,7 @@ Aplicação para monitorizar tempos de jogadores numa partida de futsal (tempos 
 - 2026-02-15 → **Monitor: 5 painéis totalmente independentes e reordenáveis** — Placar, Cronómetro, Disciplina, Em Campo e Suplentes cada um com as próprias setas para mover (migração automática do layout legado)
 - 2026-02-15 → **Monitor: reordenação por drag-and-drop** — substituídas as setas por puxador (⋮⋮) usando `@dnd-kit` com suporte a rato, teclado e toque
 - 2026-02-15 → **Monitor: grelha de 2 colunas com painéis redimensionáveis** — 6 blocos (Placar, Cronómetro, Faltas, Cartões, Em Campo, Suplentes), cada um alterna entre meia coluna e largura total via botão dedicado
+- 2026-02-15 → **Monitor: modo Compacto** — botão dedicado no cabeçalho que junta Placar + Cronómetro numa única linha (força meia coluna e reduz padding/tamanhos), libertando espaço vertical para os jogadores
 
 ## Key Endpoints
 - `POST /api/auth/login`, `register`, `forgot-password`, `reset-password`

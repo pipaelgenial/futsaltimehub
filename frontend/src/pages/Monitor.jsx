@@ -454,6 +454,7 @@ function LiveMatch({ team, match, onEnd }) {
   const DEFAULT_LAYOUT = {
     order: ['score', 'crono', 'faltas', 'cartoes', 'court', 'bench'],
     widths: { score: 2, crono: 2, faltas: 1, cartoes: 1, court: 2, bench: 2 },
+    compact: false,
   };
   const migrateLayout = (raw) => {
     // Backwards compatibility: expand legacy grouped sections into independent ones
@@ -475,6 +476,7 @@ function LiveMatch({ team, match, onEnd }) {
     return {
       order: expanded,
       widths: { ...DEFAULT_LAYOUT.widths, ...(raw.widths || {}) },
+      compact: !!raw.compact,
     };
   };
   const [layout, setLayout] = useState(() => {
@@ -504,6 +506,10 @@ function LiveMatch({ team, match, onEnd }) {
       return { ...prev, widths: { ...(prev.widths || {}), [key]: current === 2 ? 1 : 2 } };
     });
   };
+  const toggleCompact = () => {
+    setLayout((prev) => ({ ...prev, compact: !prev.compact }));
+  };
+  const compact = !!layout.compact;
 
   // Drag-and-drop reorder
   const dndSensors = useSensors(
@@ -1109,25 +1115,25 @@ function LiveMatch({ team, match, onEnd }) {
   // Build the JSX for each independently reorderable section
   const sectionMap = {
     score: (
-      <SectionShell key="score" sectionKey="score" editing={editingLayout} label="Placar" span={layout.widths?.score ?? 2} onToggleWidth={() => toggleWidth('score')}>
+      <SectionShell key="score" sectionKey="score" editing={editingLayout} label="Placar" span={compact ? 1 : (layout.widths?.score ?? 2)} onToggleWidth={compact ? null : () => toggleWidth('score')}>
         <section>
-          <div className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+          <div className={`border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm ${compact ? 'p-2 md:p-2.5' : 'p-3 md:p-4 lg:p-5'}`}>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:gap-3">
               <div className="text-right min-w-0">
-                <div className="font-display text-sm md:text-base lg:text-lg uppercase truncate">{team.name}</div>
+                <div className={`font-display uppercase truncate ${compact ? 'text-[11px] md:text-xs' : 'text-sm md:text-base lg:text-lg'}`}>{team.name}</div>
                 <button
                   onClick={openGoalScorerPicker}
                   disabled={ended || onCourtPlayers.length === 0}
-                  className="mt-1.5 md:mt-2 inline-flex items-center gap-1 bg-neon text-black font-display text-[11px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1 md:py-1.5 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className={`inline-flex items-center gap-1 bg-neon text-black font-display uppercase tracking-wider rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${compact ? 'mt-1 text-[10px] px-1.5 py-0.5' : 'mt-1.5 md:mt-2 text-[11px] md:text-xs px-2 md:px-3 py-1 md:py-1.5'}`}
                 >
-                  <Plus size={11} /> Golo
+                  <Plus size={compact ? 9 : 11} /> Golo
                 </button>
               </div>
               <div className="text-center px-1 md:px-2">
                 <div className="text-[9px] md:text-[10px] tracking-label uppercase text-white/50 mb-0.5">Resultado</div>
-                <div className="font-display text-4xl md:text-5xl lg:text-6xl tabular-nums leading-none flex items-center gap-1.5 md:gap-2 lg:gap-3">
+                <div className={`font-display tabular-nums leading-none flex items-center gap-1.5 md:gap-2 lg:gap-3 ${compact ? 'text-2xl md:text-3xl' : 'text-4xl md:text-5xl lg:text-6xl'}`}>
                   <span className={homeScore > awayScore ? 'text-neon' : 'text-white'}>{homeScore}</span>
-                  <span className="text-white/30 text-xl md:text-2xl lg:text-3xl">·</span>
+                  <span className={`text-white/30 ${compact ? 'text-base' : 'text-xl md:text-2xl lg:text-3xl'}`}>·</span>
                   <span className={awayScore > homeScore ? 'text-red-400' : 'text-white'}>{awayScore}</span>
                 </div>
                 {goals.length > 0 && !ended && (
@@ -1141,13 +1147,13 @@ function LiveMatch({ team, match, onEnd }) {
                 )}
               </div>
               <div className="min-w-0">
-                <div className="font-display text-sm md:text-base lg:text-lg uppercase truncate">{match.opponent}</div>
+                <div className={`font-display uppercase truncate ${compact ? 'text-[11px] md:text-xs' : 'text-sm md:text-base lg:text-lg'}`}>{match.opponent}</div>
                 <button
                   onClick={() => !ended && recordGoal('away')}
                   disabled={ended}
-                  className="mt-1.5 md:mt-2 inline-flex items-center gap-1 bg-red-500/15 border border-red-500/40 text-red-300 font-display text-[11px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1 md:py-1.5 rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className={`inline-flex items-center gap-1 bg-red-500/15 border border-red-500/40 text-red-300 font-display uppercase tracking-wider rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${compact ? 'mt-1 text-[10px] px-1.5 py-0.5' : 'mt-1.5 md:mt-2 text-[11px] md:text-xs px-2 md:px-3 py-1 md:py-1.5'}`}
                 >
-                  <Plus size={11} /> <span className="hidden sm:inline">Golo</span> Adv.
+                  <Plus size={compact ? 9 : 11} /> <span className="hidden sm:inline">Golo</span> Adv.
                 </button>
               </div>
             </div>
@@ -1156,17 +1162,19 @@ function LiveMatch({ team, match, onEnd }) {
       </SectionShell>
     ),
     crono: (
-      <SectionShell key="crono" sectionKey="crono" editing={editingLayout} label="Cronómetro" span={layout.widths?.crono ?? 2} onToggleWidth={() => toggleWidth('crono')}>
+      <SectionShell key="crono" sectionKey="crono" editing={editingLayout} label="Cronómetro" span={compact ? 1 : (layout.widths?.crono ?? 2)} onToggleWidth={compact ? null : () => toggleWidth('crono')}>
         <section>
-          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
-            <div className="flex items-center justify-between mb-1.5 md:mb-2">
+          <div className={`border border-white/10 bg-[#0f0f0f] rounded-sm ${compact ? 'p-2 md:p-2.5' : 'p-3 md:p-4 lg:p-5'}`}>
+            <div className="flex items-center justify-between mb-1 md:mb-1.5">
               <div className="min-w-0">
                 <div className="text-[10px] tracking-label uppercase text-neon mb-0.5">
                   Cronómetro · {clockMode === 'down' ? 'Decrescente' : 'Crescente'}
                 </div>
-                <div className="text-[11px] text-white/55 uppercase tracking-wide truncate">
-                  {half === 1 ? '1.ª Parte' : '2.ª Parte'} · {Math.round(halfDuration / 60)}:00 min
-                </div>
+                {!compact && (
+                  <div className="text-[11px] text-white/55 uppercase tracking-wide truncate">
+                    {half === 1 ? '1.ª Parte' : '2.ª Parte'} · {Math.round(halfDuration / 60)}:00 min
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <span
@@ -1175,37 +1183,41 @@ function LiveMatch({ team, match, onEnd }) {
                   }`}
                 />
                 <span className="text-[9px] md:text-[10px] tracking-label uppercase text-white/60">
-                  {ended ? 'Terminado' : running ? 'AO VIVO' : halfFinished ? 'Fim' : 'Pausa'}
+                  {ended ? 'Terminado' : running ? 'AO VIVO' : halfFinished ? 'Fim' : `${half}.ª · Pausa`}
                 </span>
               </div>
             </div>
             <div
               data-testid="live-clock"
-              className={`font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-none tracking-tight tabular-nums ${
-                clockMode === 'down' && isLast30 ? 'text-red-400' : 'text-neon neon-text'
-              }`}
+              className={`font-display leading-none tracking-tight tabular-nums ${
+                compact ? 'text-3xl md:text-4xl' : 'text-4xl md:text-5xl lg:text-6xl xl:text-7xl'
+              } ${clockMode === 'down' && isLast30 ? 'text-red-400' : 'text-neon neon-text'}`}
             >
               {formatTime(clockDisplay)}
             </div>
-            <div className="flex flex-wrap gap-1.5 md:gap-2 mt-2 md:mt-3">
+            <div className={`flex flex-wrap gap-1.5 md:gap-2 ${compact ? 'mt-1.5' : 'mt-2 md:mt-3'}`}>
               <button
                 onClick={toggleClock}
                 disabled={ended || halfFinished}
-                className={`flex-1 min-w-[100px] font-display text-xs md:text-sm uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
+                className={`flex-1 min-w-[80px] font-display uppercase tracking-wider rounded-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  compact ? 'text-[11px] px-2 py-1' : 'text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2'
+                } ${
                   running
                     ? 'bg-white/10 text-white hover:bg-white/15'
                     : 'bg-neon text-black hover:bg-[#bbdc0d]'
                 }`}
               >
-                {running ? <Pause size={13} /> : <Play size={13} />}
+                {running ? <Pause size={compact ? 11 : 13} /> : <Play size={compact ? 11 : 13} />}
                 {running ? 'Pausar' : 'Iniciar'}
               </button>
               <button
                 onClick={goNextHalf}
                 disabled={ended}
-                className="flex-1 min-w-[100px] font-display text-xs md:text-sm uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm bg-white/5 border border-white/10 text-white hover:border-neon transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`flex-1 min-w-[80px] font-display uppercase tracking-wider rounded-sm bg-white/5 border border-white/10 text-white hover:border-neon transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  compact ? 'text-[11px] px-2 py-1' : 'text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2'
+                }`}
               >
-                <ChevronRight size={13} />
+                <ChevronRight size={compact ? 11 : 13} />
                 {half === 1 ? 'Fim 1.ª' : 'Terminar'}
               </button>
             </div>
@@ -1347,6 +1359,19 @@ function LiveMatch({ team, match, onEnd }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleCompact}
+            data-testid="compact-toggle-btn"
+            className={`text-[10px] uppercase tracking-label px-2 py-1.5 rounded-sm border flex items-center gap-1.5 transition-colors ${
+              compact
+                ? 'border-neon bg-neon/10 text-neon'
+                : 'border-white/10 text-white/55 hover:border-neon hover:text-neon'
+            }`}
+            title="Tema compacto: junta placar e cronómetro numa linha"
+          >
+            <Minimize2 size={12} />
+            <span className="hidden sm:inline">Compacto</span>
+          </button>
           <button
             onClick={() => setEditingLayout((v) => !v)}
             data-testid="layout-toggle-btn"
