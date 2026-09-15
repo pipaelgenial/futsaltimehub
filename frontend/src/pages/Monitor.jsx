@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Play, Pause, RotateCcw, ArrowLeftRight, History, ChevronRight,
   Timer as TimerIcon, Users, Trophy, X, ArrowRight, ArrowLeft, Save,
-  Plus, Check, AlertTriangle, Square, Loader2,
+  Plus, Check, AlertTriangle, Square, Loader2, LayoutGrid, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
@@ -438,6 +438,31 @@ function LiveMatch({ team, match, onEnd }) {
   const [selectedIn, setSelectedIn] = useState(null);
   const tickRef = useRef(null);
 
+  // ---- Layout personalization (per user, persisted in localStorage) ----
+  const DEFAULT_LAYOUT = { order: ['scoreCrono', 'disciplina', 'players'], scoreCronoFlip: false, playersFlip: false };
+  const [layout, setLayout] = useState(() => {
+    try {
+      const raw = localStorage.getItem('flh_monitor_layout');
+      if (raw) return { ...DEFAULT_LAYOUT, ...JSON.parse(raw) };
+    } catch { /* ignore */ }
+    return DEFAULT_LAYOUT;
+  });
+  const [editingLayout, setEditingLayout] = useState(false);
+  useEffect(() => {
+    try { localStorage.setItem('flh_monitor_layout', JSON.stringify(layout)); } catch { /* ignore */ }
+  }, [layout]);
+  const moveSection = (key, dir) => {
+    setLayout((prev) => {
+      const idx = prev.order.indexOf(key);
+      const next = idx + dir;
+      if (idx < 0 || next < 0 || next >= prev.order.length) return prev;
+      const order = [...prev.order];
+      [order[idx], order[next]] = [order[next], order[idx]];
+      return { ...prev, order };
+    });
+  };
+  const flip = (which) => setLayout((prev) => ({ ...prev, [which]: !prev[which] }));
+
   const homeScore = goals.filter((g) => g.type === 'home').length;
   const awayScore = goals.filter((g) => g.type === 'away').length;
   const foulsCommitted = fouls.filter((f) => f.type === 'committed').length;
@@ -862,6 +887,15 @@ function LiveMatch({ team, match, onEnd }) {
 
   const fillEmptySlot = (slotId, player) => {
     if (!player) return;
+    // Hard guard: no matter what, never allow more than 5 players on court simultaneously
+    const currentOnCourt = players.filter((p) => p.onCourt).length;
+    if (currentOnCourt >= 5) {
+      toast.error('JÁ TENS 5 EM CAMPO', {
+        description: 'Não é permitido ter mais de 5 jogadores em campo em simultâneo.',
+      });
+      setPendingPicker(null);
+      return;
+    }
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.id !== player.id) return p;
@@ -934,6 +968,22 @@ function LiveMatch({ team, match, onEnd }) {
   };
 
   const performSubstitution = (outId, inId) => {
+    // Hard guard: must always be a 1-for-1 swap that never exceeds 5 on court
+    const outPlayer = players.find((p) => p.id === outId);
+    const inPlayer = players.find((p) => p.id === inId);
+    if (!outPlayer?.onCourt || inPlayer?.onCourt) {
+      toast.error('SUBSTITUIÇÃO INVÁLIDA', {
+        description: 'É preciso um jogador em campo a sair e um do banco a entrar.',
+      });
+      setSelectedIn(null); setSelectedOut(null);
+      return;
+    }
+    const onCourtAfter = players.filter((p) => p.onCourt).length; // out leaves, in enters ⇒ same count
+    if (onCourtAfter > 5) {
+      toast.error('JÁ TENS 5 EM CAMPO');
+      setSelectedIn(null); setSelectedOut(null);
+      return;
+    }
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.id === outId) {
@@ -1010,6 +1060,28 @@ function LiveMatch({ team, match, onEnd }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setEditingLayout((v) => !v)}
+            data-testid="layout-toggle-btn"
+            className={`text-[10px] uppercase tracking-label px-2 py-1.5 rounded-sm border flex items-center gap-1.5 transition-colors ${
+              editingLayout
+                ? 'border-neon bg-neon/10 text-neon'
+                : 'border-white/10 text-white/55 hover:border-neon hover:text-neon'
+            }`}
+            title="Reorganizar painéis do monitor"
+          >
+            <LayoutGrid size={12} />
+            <span className="hidden sm:inline">{editingLayout ? 'Concluir' : 'Personalizar'}</span>
+          </button>
+          {editingLayout && layout.order.join('|') !== DEFAULT_LAYOUT.order.join('|') && (
+            <button
+              onClick={() => setLayout(DEFAULT_LAYOUT)}
+              className="text-[10px] uppercase tracking-label text-white/45 hover:text-white"
+              title="Repor layout padrão"
+            >
+              ↺ Repor
+            </button>
+          )}
           {ended && (
             <button
               onClick={saveCurrentMatch}
@@ -1029,11 +1101,27 @@ function LiveMatch({ team, match, onEnd }) {
         </div>
       </header>
 
-      <main className="flex-1 px-3 md:px-5 lg:px-8 py-3 md:py-5 max-w-[1500px] mx-auto w-full">
+      <main className="flex-1 px-3 md:px-5 lg:px-8 py-3 md:py-5 max-w-[1500px] mx-auto w-full flex flex-col gap-2 md:gap-3">
+        {editingLayout && (
+          <div className="border border-neon/40 bg-neon/5 text-neon/90 rounded-sm p-2 md:p-3 text-[11px] tracking-label uppercase text-center">
+            Modo personalização · usa as setas para reordenar os painéis
+          </div>
+        )}
         {/* Scoreboard + Cronómetro (side-by-side) */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3 mb-2 md:mb-3">
-          {/* Scoreboard */}
-          <div className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+        <SectionShell
+          sectionKey="scoreCrono"
+          editing={editingLayout}
+          orderIndex={layout.order.indexOf('scoreCrono')}
+          onUp={() => moveSection('scoreCrono', -1)}
+          onDown={() => moveSection('scoreCrono', +1)}
+          onFlip={() => flip('scoreCronoFlip')}
+          canMoveUp={layout.order.indexOf('scoreCrono') > 0}
+          canMoveDown={layout.order.indexOf('scoreCrono') < layout.order.length - 1}
+          label="Placar & Cronómetro"
+        >
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
+            {/* Scoreboard */}
+            <div style={{ order: layout.scoreCronoFlip ? 1 : 0 }} className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:gap-3">
               {/* Home */}
               <div className="text-right min-w-0">
@@ -1081,7 +1169,7 @@ function LiveMatch({ team, match, onEnd }) {
           </div>
 
           {/* Cronómetro */}
-          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+          <div style={{ order: layout.scoreCronoFlip ? 0 : 1 }} className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
             <div className="flex items-center justify-between mb-1.5 md:mb-2">
               <div className="min-w-0">
                 <div className="text-[10px] tracking-label uppercase text-neon mb-0.5">
@@ -1136,9 +1224,20 @@ function LiveMatch({ team, match, onEnd }) {
             </div>
           </div>
         </section>
+        </SectionShell>
 
         {/* Disciplina panel */}
-        <section className="mb-2 md:mb-3 border border-white/10 bg-[#0f0f0f] rounded-sm p-2.5 md:p-4">
+        <SectionShell
+          sectionKey="disciplina"
+          editing={editingLayout}
+          orderIndex={layout.order.indexOf('disciplina')}
+          onUp={() => moveSection('disciplina', -1)}
+          onDown={() => moveSection('disciplina', +1)}
+          canMoveUp={layout.order.indexOf('disciplina') > 0}
+          canMoveDown={layout.order.indexOf('disciplina') < layout.order.length - 1}
+          label="Disciplina"
+        >
+        <section className="border border-white/10 bg-[#0f0f0f] rounded-sm p-2.5 md:p-4">
           <div className="flex items-center justify-between mb-2 md:mb-3">
             <div className="text-[10px] tracking-label uppercase text-neon">Disciplina · Faltas & Cartões</div>
             {(fouls.length > 0 || cards.length > 0) && !ended && (
@@ -1193,7 +1292,20 @@ function LiveMatch({ team, match, onEnd }) {
             />
           </div>
         </section>
+        </SectionShell>
 
+        {/* Players (Em Campo + Banco) with optional substitution helper */}
+        <SectionShell
+          sectionKey="players"
+          editing={editingLayout}
+          orderIndex={layout.order.indexOf('players')}
+          onUp={() => moveSection('players', -1)}
+          onDown={() => moveSection('players', +1)}
+          onFlip={() => flip('playersFlip')}
+          canMoveUp={layout.order.indexOf('players') > 0}
+          canMoveDown={layout.order.indexOf('players') < layout.order.length - 1}
+          label="Em Campo & Banco"
+        >
         {/* Substitution helper bar */}
         {(selectedOut || selectedIn) && !ended && (
           <div className="mb-2 md:mb-3 border border-neon/40 bg-[#161b05] rounded-sm p-2 md:p-3 flex items-center justify-between gap-2 md:gap-3 fade-up">
@@ -1236,7 +1348,7 @@ function LiveMatch({ team, match, onEnd }) {
 
         {/* Players grids */}
         <section className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-2 md:gap-3">
-          <div>
+          <div style={{ order: layout.playersFlip ? 1 : 0 }}>
             <SectionHeader title="Em Campo" count={onCourtPlayers.length + emptySlots.length} accent />
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-2.5">
               {onCourtPlayers.map((p) => (
@@ -1260,7 +1372,7 @@ function LiveMatch({ team, match, onEnd }) {
             </div>
           </div>
 
-          <div>
+          <div style={{ order: layout.playersFlip ? 0 : 1 }}>
             <SectionHeader title="Banco" count={benchPlayers.length} />
             <div className="grid grid-cols-2 gap-2 md:gap-2.5">
               {benchPlayers.map((p) => (
@@ -1280,6 +1392,7 @@ function LiveMatch({ team, match, onEnd }) {
             </div>
           </div>
         </section>
+        </SectionShell>
 
         {/* Goals log */}
         <section className="mt-8">
@@ -1595,6 +1708,52 @@ function LiveMatch({ team, match, onEnd }) {
 }
 
 /* ----------- Shared Subcomponents ----------- */
+
+function SectionShell({ children, editing, orderIndex, onUp, onDown, onFlip, canMoveUp, canMoveDown, label }) {
+  return (
+    <div style={{ order: orderIndex }} className={editing ? 'relative border border-neon/30 rounded-sm p-1' : ''}>
+      {editing && (
+        <div className="mb-1 flex items-center justify-between gap-2 bg-neon/10 border border-neon/30 rounded-sm px-2 py-1">
+          <div className="text-[10px] tracking-label uppercase text-neon truncate">{label}</div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              data-testid={`layout-up-${label}`}
+              onClick={onUp}
+              disabled={!canMoveUp}
+              className="w-6 h-6 flex items-center justify-center rounded-sm border border-white/10 text-white/70 hover:text-neon hover:border-neon disabled:opacity-30"
+              title="Mover para cima"
+            >
+              <ChevronUp size={12} />
+            </button>
+            <button
+              type="button"
+              data-testid={`layout-down-${label}`}
+              onClick={onDown}
+              disabled={!canMoveDown}
+              className="w-6 h-6 flex items-center justify-center rounded-sm border border-white/10 text-white/70 hover:text-neon hover:border-neon disabled:opacity-30"
+              title="Mover para baixo"
+            >
+              <ChevronDown size={12} />
+            </button>
+            {onFlip && (
+              <button
+                type="button"
+                data-testid={`layout-flip-${label}`}
+                onClick={onFlip}
+                className="w-6 h-6 flex items-center justify-center rounded-sm border border-white/10 text-white/70 hover:text-neon hover:border-neon"
+                title="Inverter ordem esquerda ↔ direita"
+              >
+                <ArrowLeftRight size={11} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
 
 function SectionHeader({ title, count, accent, icon: Icon = Users }) {
   return (
