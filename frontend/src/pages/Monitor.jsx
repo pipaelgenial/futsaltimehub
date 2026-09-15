@@ -4,6 +4,7 @@ import {
   Play, Pause, RotateCcw, ArrowLeftRight, History, ChevronRight,
   Timer as TimerIcon, Users, Trophy, X, ArrowRight, ArrowLeft, Save,
   Plus, Check, AlertTriangle, Square, Loader2, LayoutGrid, GripVertical,
+  Minimize2, Maximize2,
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
@@ -19,7 +20,7 @@ import {
   useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
-  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+  SortableContext, sortableKeyboardCoordinates, rectSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -448,8 +449,12 @@ function LiveMatch({ team, match, onEnd }) {
   const tickRef = useRef(null);
 
   // ---- Layout personalization (per user, persisted in localStorage) ----
-  // Sections are now fully independent and individually reorderable.
-  const DEFAULT_LAYOUT = { order: ['score', 'crono', 'disciplina', 'court', 'bench'] };
+  // Sections are fully independent, reorderable via drag-and-drop and resizable (1 or 2 columns).
+  const SECTION_KEYS = ['score', 'crono', 'faltas', 'cartoes', 'court', 'bench'];
+  const DEFAULT_LAYOUT = {
+    order: ['score', 'crono', 'faltas', 'cartoes', 'court', 'bench'],
+    widths: { score: 2, crono: 2, faltas: 1, cartoes: 1, court: 2, bench: 2 },
+  };
   const migrateLayout = (raw) => {
     // Backwards compatibility: expand legacy grouped sections into independent ones
     if (!raw || !Array.isArray(raw.order)) return DEFAULT_LAYOUT;
@@ -459,13 +464,18 @@ function LiveMatch({ team, match, onEnd }) {
         expanded.push(...(raw.scoreCronoFlip ? ['crono', 'score'] : ['score', 'crono']));
       } else if (k === 'players') {
         expanded.push(...(raw.playersFlip ? ['bench', 'court'] : ['court', 'bench']));
-      } else if (['score', 'crono', 'disciplina', 'court', 'bench'].includes(k)) {
+      } else if (k === 'disciplina') {
+        expanded.push('faltas', 'cartoes');
+      } else if (SECTION_KEYS.includes(k)) {
         expanded.push(k);
       }
     });
     // Ensure all sections are present (append any missing at the end in default order)
     DEFAULT_LAYOUT.order.forEach((k) => { if (!expanded.includes(k)) expanded.push(k); });
-    return { order: expanded };
+    return {
+      order: expanded,
+      widths: { ...DEFAULT_LAYOUT.widths, ...(raw.widths || {}) },
+    };
   };
   const [layout, setLayout] = useState(() => {
     try {
@@ -486,6 +496,12 @@ function LiveMatch({ team, match, onEnd }) {
       const order = [...prev.order];
       [order[idx], order[next]] = [order[next], order[idx]];
       return { ...prev, order };
+    });
+  };
+  const toggleWidth = (key) => {
+    setLayout((prev) => {
+      const current = prev.widths?.[key] ?? 2;
+      return { ...prev, widths: { ...(prev.widths || {}), [key]: current === 2 ? 1 : 2 } };
     });
   };
 
@@ -1093,7 +1109,7 @@ function LiveMatch({ team, match, onEnd }) {
   // Build the JSX for each independently reorderable section
   const sectionMap = {
     score: (
-      <SectionShell key="score" sectionKey="score" editing={editingLayout} label="Placar">
+      <SectionShell key="score" sectionKey="score" editing={editingLayout} label="Placar" span={layout.widths?.score ?? 2} onToggleWidth={() => toggleWidth('score')}>
         <section>
           <div className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:gap-3">
@@ -1140,7 +1156,7 @@ function LiveMatch({ team, match, onEnd }) {
       </SectionShell>
     ),
     crono: (
-      <SectionShell key="crono" sectionKey="crono" editing={editingLayout} label="Cronómetro">
+      <SectionShell key="crono" sectionKey="crono" editing={editingLayout} label="Cronómetro" span={layout.widths?.crono ?? 2} onToggleWidth={() => toggleWidth('crono')}>
         <section>
           <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
             <div className="flex items-center justify-between mb-1.5 md:mb-2">
@@ -1197,27 +1213,18 @@ function LiveMatch({ team, match, onEnd }) {
         </section>
       </SectionShell>
     ),
-    disciplina: (
-      <SectionShell key="disciplina" sectionKey="disciplina" editing={editingLayout} label="Disciplina">
-        <section className="border border-white/10 bg-[#0f0f0f] rounded-sm p-2.5 md:p-4">
+    faltas: (
+      <SectionShell key="faltas" sectionKey="faltas" editing={editingLayout} label="Faltas" span={layout.widths?.faltas ?? 1} onToggleWidth={() => toggleWidth('faltas')}>
+        <section className="border border-white/10 bg-[#0f0f0f] rounded-sm p-2.5 md:p-4 h-full">
           <div className="flex items-center justify-between mb-2 md:mb-3">
-            <div className="text-[10px] tracking-label uppercase text-neon">Disciplina · Faltas & Cartões</div>
-            {(fouls.length > 0 || cards.length > 0) && !ended && (
-              <div className="flex gap-3 text-[10px] tracking-label uppercase">
-                {fouls.length > 0 && (
-                  <button onClick={undoLastFoul} className="text-white/45 hover:text-orange-400 transition-colors">
-                    ↶ Anular Falta
-                  </button>
-                )}
-                {cards.length > 0 && (
-                  <button onClick={undoLastCard} className="text-white/45 hover:text-red-400 transition-colors">
-                    ↶ Anular Cartão
-                  </button>
-                )}
-              </div>
+            <div className="text-[10px] tracking-label uppercase text-neon">Faltas</div>
+            {fouls.length > 0 && !ended && (
+              <button onClick={undoLastFoul} className="text-[10px] tracking-label uppercase text-white/45 hover:text-orange-400 transition-colors">
+                ↶ Anular Falta
+              </button>
             )}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+          <div className="grid grid-cols-2 gap-2 md:gap-3">
             <DisciplineTile
               label="Faltas Marcadas"
               hint={`Esta parte · Total: ${foulsCommitted}`}
@@ -1236,6 +1243,22 @@ function LiveMatch({ team, match, onEnd }) {
               onAdd={() => !ended && recordFoul('suffered')}
               disabled={ended}
             />
+          </div>
+        </section>
+      </SectionShell>
+    ),
+    cartoes: (
+      <SectionShell key="cartoes" sectionKey="cartoes" editing={editingLayout} label="Cartões" span={layout.widths?.cartoes ?? 1} onToggleWidth={() => toggleWidth('cartoes')}>
+        <section className="border border-white/10 bg-[#0f0f0f] rounded-sm p-2.5 md:p-4 h-full">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="text-[10px] tracking-label uppercase text-neon">Cartões</div>
+            {cards.length > 0 && !ended && (
+              <button onClick={undoLastCard} className="text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors">
+                ↶ Anular Cartão
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:gap-3">
             <DisciplineTile
               label="Cartões Amarelos"
               hint="Advertências (jogo)"
@@ -1257,7 +1280,7 @@ function LiveMatch({ team, match, onEnd }) {
       </SectionShell>
     ),
     court: (
-      <SectionShell key="court" sectionKey="court" editing={editingLayout} label="Em Campo">
+      <SectionShell key="court" sectionKey="court" editing={editingLayout} label="Em Campo" span={layout.widths?.court ?? 2} onToggleWidth={() => toggleWidth('court')}>
         <section>
           <SectionHeader title="Em Campo" count={onCourtPlayers.length + emptySlots.length} accent />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-2.5">
@@ -1284,7 +1307,7 @@ function LiveMatch({ team, match, onEnd }) {
       </SectionShell>
     ),
     bench: (
-      <SectionShell key="bench" sectionKey="bench" editing={editingLayout} label="Suplentes">
+      <SectionShell key="bench" sectionKey="bench" editing={editingLayout} label="Suplentes" span={layout.widths?.bench ?? 2} onToggleWidth={() => toggleWidth('bench')}>
         <section>
           <SectionHeader title="Suplentes" count={benchPlayers.length} />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-2.5">
@@ -1413,8 +1436,8 @@ function LiveMatch({ team, match, onEnd }) {
         )}
 
         <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={layout.order} strategy={verticalListSortingStrategy}>
-            <div className="flex flex-col gap-2 md:gap-3">
+          <SortableContext items={layout.order} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-2 gap-2 md:gap-3">
               {layout.order.map((k) => sectionMap[k]).filter(Boolean)}
             </div>
           </SortableContext>
@@ -1735,7 +1758,7 @@ function LiveMatch({ team, match, onEnd }) {
 
 /* ----------- Shared Subcomponents ----------- */
 
-function SectionShell({ children, sectionKey, editing, label }) {
+function SectionShell({ children, sectionKey, editing, label, span = 2, onToggleWidth }) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: sectionKey, disabled: !editing });
@@ -1744,11 +1767,12 @@ function SectionShell({ children, sectionKey, editing, label }) {
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+  const spanClass = span === 1 ? 'col-span-1' : 'col-span-2';
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={editing ? 'relative border border-neon/30 rounded-sm p-1 bg-black/50' : ''}
+      className={`${spanClass} ${editing ? 'relative border border-neon/30 rounded-sm p-1 bg-black/50' : ''}`}
       data-testid={`section-${sectionKey}`}
     >
       {editing && (
@@ -1767,6 +1791,18 @@ function SectionShell({ children, sectionKey, editing, label }) {
             </button>
             <div className="text-[10px] tracking-label uppercase text-neon truncate">{label}</div>
           </div>
+          {onToggleWidth && (
+            <button
+              type="button"
+              data-testid={`layout-width-${sectionKey}`}
+              onClick={onToggleWidth}
+              className="w-7 h-7 flex items-center justify-center rounded-sm border border-white/10 text-white/70 hover:text-neon hover:border-neon"
+              title={span === 2 ? 'Reduzir para meia coluna' : 'Expandir para largura total'}
+              aria-label={span === 2 ? 'Reduzir largura' : 'Expandir largura'}
+            >
+              {span === 2 ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            </button>
+          )}
         </div>
       )}
       {children}
