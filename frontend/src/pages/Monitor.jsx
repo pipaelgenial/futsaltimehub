@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Play, Pause, RotateCcw, ArrowLeftRight, History, ChevronRight,
   Timer as TimerIcon, Users, Trophy, X, ArrowRight, ArrowLeft, Save,
-  Plus, Check, AlertTriangle, Square, Loader2, LayoutGrid, ChevronUp, ChevronDown,
+  Plus, Check, AlertTriangle, Square, Loader2, LayoutGrid, GripVertical,
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
@@ -14,6 +14,15 @@ import {
 } from '../lib/api';
 import { formatTime, formatTimeLong, formatCountdown } from '../lib/time';
 import { toast } from 'sonner';
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export default function Monitor() {
   const navigate = useNavigate();
@@ -476,6 +485,26 @@ function LiveMatch({ team, match, onEnd }) {
       if (idx < 0 || next < 0 || next >= prev.order.length) return prev;
       const order = [...prev.order];
       [order[idx], order[next]] = [order[next], order[idx]];
+      return { ...prev, order };
+    });
+  };
+
+  // Drag-and-drop reorder
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setLayout((prev) => {
+      const oldIdx = prev.order.indexOf(active.id);
+      const newIdx = prev.order.indexOf(over.id);
+      if (oldIdx < 0 || newIdx < 0) return prev;
+      const order = [...prev.order];
+      order.splice(oldIdx, 1);
+      order.splice(newIdx, 0, active.id);
       return { ...prev, order };
     });
   };
@@ -1061,6 +1090,224 @@ function LiveMatch({ team, match, onEnd }) {
     setSelectedIn((cur) => (cur === pid ? null : pid));
   };
 
+  // Build the JSX for each independently reorderable section
+  const sectionMap = {
+    score: (
+      <SectionShell key="score" sectionKey="score" editing={editingLayout} label="Placar">
+        <section>
+          <div className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:gap-3">
+              <div className="text-right min-w-0">
+                <div className="font-display text-sm md:text-base lg:text-lg uppercase truncate">{team.name}</div>
+                <button
+                  onClick={openGoalScorerPicker}
+                  disabled={ended || onCourtPlayers.length === 0}
+                  className="mt-1.5 md:mt-2 inline-flex items-center gap-1 bg-neon text-black font-display text-[11px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1 md:py-1.5 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus size={11} /> Golo
+                </button>
+              </div>
+              <div className="text-center px-1 md:px-2">
+                <div className="text-[9px] md:text-[10px] tracking-label uppercase text-white/50 mb-0.5">Resultado</div>
+                <div className="font-display text-4xl md:text-5xl lg:text-6xl tabular-nums leading-none flex items-center gap-1.5 md:gap-2 lg:gap-3">
+                  <span className={homeScore > awayScore ? 'text-neon' : 'text-white'}>{homeScore}</span>
+                  <span className="text-white/30 text-xl md:text-2xl lg:text-3xl">·</span>
+                  <span className={awayScore > homeScore ? 'text-red-400' : 'text-white'}>{awayScore}</span>
+                </div>
+                {goals.length > 0 && !ended && (
+                  <button
+                    onClick={undoLastGoal}
+                    className="mt-1 text-[9px] md:text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors"
+                    title="Anular último golo"
+                  >
+                    ↶ Anular
+                  </button>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="font-display text-sm md:text-base lg:text-lg uppercase truncate">{match.opponent}</div>
+                <button
+                  onClick={() => !ended && recordGoal('away')}
+                  disabled={ended}
+                  className="mt-1.5 md:mt-2 inline-flex items-center gap-1 bg-red-500/15 border border-red-500/40 text-red-300 font-display text-[11px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1 md:py-1.5 rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus size={11} /> <span className="hidden sm:inline">Golo</span> Adv.
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </SectionShell>
+    ),
+    crono: (
+      <SectionShell key="crono" sectionKey="crono" editing={editingLayout} label="Cronómetro">
+        <section>
+          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+            <div className="flex items-center justify-between mb-1.5 md:mb-2">
+              <div className="min-w-0">
+                <div className="text-[10px] tracking-label uppercase text-neon mb-0.5">
+                  Cronómetro · {clockMode === 'down' ? 'Decrescente' : 'Crescente'}
+                </div>
+                <div className="text-[11px] text-white/55 uppercase tracking-wide truncate">
+                  {half === 1 ? '1.ª Parte' : '2.ª Parte'} · {Math.round(halfDuration / 60)}:00 min
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span
+                  className={`inline-block w-2 h-2 rounded-full ${
+                    ended ? 'bg-white/30' : running ? 'bg-red-500 live-dot' : 'bg-white/30'
+                  }`}
+                />
+                <span className="text-[9px] md:text-[10px] tracking-label uppercase text-white/60">
+                  {ended ? 'Terminado' : running ? 'AO VIVO' : halfFinished ? 'Fim' : 'Pausa'}
+                </span>
+              </div>
+            </div>
+            <div
+              data-testid="live-clock"
+              className={`font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-none tracking-tight tabular-nums ${
+                clockMode === 'down' && isLast30 ? 'text-red-400' : 'text-neon neon-text'
+              }`}
+            >
+              {formatTime(clockDisplay)}
+            </div>
+            <div className="flex flex-wrap gap-1.5 md:gap-2 mt-2 md:mt-3">
+              <button
+                onClick={toggleClock}
+                disabled={ended || halfFinished}
+                className={`flex-1 min-w-[100px] font-display text-xs md:text-sm uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  running
+                    ? 'bg-white/10 text-white hover:bg-white/15'
+                    : 'bg-neon text-black hover:bg-[#bbdc0d]'
+                }`}
+              >
+                {running ? <Pause size={13} /> : <Play size={13} />}
+                {running ? 'Pausar' : 'Iniciar'}
+              </button>
+              <button
+                onClick={goNextHalf}
+                disabled={ended}
+                className="flex-1 min-w-[100px] font-display text-xs md:text-sm uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm bg-white/5 border border-white/10 text-white hover:border-neon transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight size={13} />
+                {half === 1 ? 'Fim 1.ª' : 'Terminar'}
+              </button>
+            </div>
+          </div>
+        </section>
+      </SectionShell>
+    ),
+    disciplina: (
+      <SectionShell key="disciplina" sectionKey="disciplina" editing={editingLayout} label="Disciplina">
+        <section className="border border-white/10 bg-[#0f0f0f] rounded-sm p-2.5 md:p-4">
+          <div className="flex items-center justify-between mb-2 md:mb-3">
+            <div className="text-[10px] tracking-label uppercase text-neon">Disciplina · Faltas & Cartões</div>
+            {(fouls.length > 0 || cards.length > 0) && !ended && (
+              <div className="flex gap-3 text-[10px] tracking-label uppercase">
+                {fouls.length > 0 && (
+                  <button onClick={undoLastFoul} className="text-white/45 hover:text-orange-400 transition-colors">
+                    ↶ Anular Falta
+                  </button>
+                )}
+                {cards.length > 0 && (
+                  <button onClick={undoLastCard} className="text-white/45 hover:text-red-400 transition-colors">
+                    ↶ Anular Cartão
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+            <DisciplineTile
+              label="Faltas Marcadas"
+              hint={`Esta parte · Total: ${foulsCommitted}`}
+              value={foulsCommittedThisHalf}
+              suffix="/5"
+              warn={foulsCommittedThisHalf >= 5}
+              color="orange"
+              onAdd={openFoulCommitterPicker}
+              disabled={ended || onCourtPlayers.length === 0}
+            />
+            <DisciplineTile
+              label="Faltas Sofridas"
+              hint={`Esta parte · Total: ${foulsSuffered}`}
+              value={foulsSufferedThisHalf}
+              color="blue"
+              onAdd={() => !ended && recordFoul('suffered')}
+              disabled={ended}
+            />
+            <DisciplineTile
+              label="Cartões Amarelos"
+              hint="Advertências (jogo)"
+              value={yellowCards}
+              color="yellow"
+              onAdd={() => openCardPicker('yellow')}
+              disabled={ended || onCourtPlayers.length === 0}
+            />
+            <DisciplineTile
+              label="Cartões Vermelhos"
+              hint="Expulsões (jogo)"
+              value={redCards}
+              color="red"
+              onAdd={() => openCardPicker('red')}
+              disabled={ended || onCourtPlayers.length === 0}
+            />
+          </div>
+        </section>
+      </SectionShell>
+    ),
+    court: (
+      <SectionShell key="court" sectionKey="court" editing={editingLayout} label="Em Campo">
+        <section>
+          <SectionHeader title="Em Campo" count={onCourtPlayers.length + emptySlots.length} accent />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-2.5">
+            {onCourtPlayers.map((p) => (
+              <PlayerCard
+                key={p.id}
+                player={p}
+                selected={selectedOut === p.id}
+                onClick={() => handleCourtClick(p.id)}
+                onCourt
+                disabled={ended}
+              />
+            ))}
+            {emptySlots.map((s) => (
+              <EmptySlotCard
+                key={s.id}
+                slot={s}
+                onClick={() => openFillSlotPicker(s)}
+                disabled={ended}
+              />
+            ))}
+          </div>
+        </section>
+      </SectionShell>
+    ),
+    bench: (
+      <SectionShell key="bench" sectionKey="bench" editing={editingLayout} label="Suplentes">
+        <section>
+          <SectionHeader title="Suplentes" count={benchPlayers.length} />
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-2.5">
+            {benchPlayers.map((p) => (
+              <PlayerCard
+                key={p.id}
+                player={p}
+                selected={selectedIn === p.id}
+                onClick={() => handleBenchClick(p.id)}
+                disabled={ended}
+              />
+            ))}
+            {benchPlayers.length === 0 && (
+              <div className="col-span-full text-xs text-white/40 italic p-4 border border-dashed border-white/10 rounded-sm">
+                Sem atletas no banco.
+              </div>
+            )}
+          </div>
+        </section>
+      </SectionShell>
+    ),
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-black text-white">
       <header className="border-b border-white/10 px-5 lg:px-8 py-4 flex items-center justify-between sticky top-0 bg-black/95 backdrop-blur z-20">
@@ -1120,213 +1367,14 @@ function LiveMatch({ team, match, onEnd }) {
 
       <main className="flex-1 px-3 md:px-5 lg:px-8 py-3 md:py-5 max-w-[1500px] mx-auto w-full flex flex-col gap-2 md:gap-3">
         {editingLayout && (
-          <div style={{ order: -100 }} className="border border-neon/40 bg-neon/5 text-neon/90 rounded-sm p-2 md:p-3 text-[11px] tracking-label uppercase text-center">
-            Modo personalização · usa as setas para reordenar os painéis
+          <div className="border border-neon/40 bg-neon/5 text-neon/90 rounded-sm p-2 md:p-3 text-[11px] tracking-label uppercase text-center">
+            Modo personalização · arrasta os painéis pelo puxador para reordenar
           </div>
         )}
-        {/* Placar (Scoreboard) - independent */}
-        <SectionShell
-          sectionKey="score"
-          editing={editingLayout}
-          orderIndex={layout.order.indexOf('score')}
-          onUp={() => moveSection('score', -1)}
-          onDown={() => moveSection('score', +1)}
-          canMoveUp={layout.order.indexOf('score') > 0}
-          canMoveDown={layout.order.indexOf('score') < layout.order.length - 1}
-          label="Placar"
-        >
-          <section>
-            {/* Scoreboard */}
-            <div className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:gap-3">
-              {/* Home */}
-              <div className="text-right min-w-0">
-                <div className="font-display text-sm md:text-base lg:text-lg uppercase truncate">{team.name}</div>
-                <button
-                  onClick={openGoalScorerPicker}
-                  disabled={ended || onCourtPlayers.length === 0}
-                  className="mt-1.5 md:mt-2 inline-flex items-center gap-1 bg-neon text-black font-display text-[11px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1 md:py-1.5 rounded-sm hover:bg-[#bbdc0d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Plus size={11} /> Golo
-                </button>
-              </div>
-
-              {/* Score */}
-              <div className="text-center px-1 md:px-2">
-                <div className="text-[9px] md:text-[10px] tracking-label uppercase text-white/50 mb-0.5">Resultado</div>
-                <div className="font-display text-4xl md:text-5xl lg:text-6xl tabular-nums leading-none flex items-center gap-1.5 md:gap-2 lg:gap-3">
-                  <span className={homeScore > awayScore ? 'text-neon' : 'text-white'}>{homeScore}</span>
-                  <span className="text-white/30 text-xl md:text-2xl lg:text-3xl">·</span>
-                  <span className={awayScore > homeScore ? 'text-red-400' : 'text-white'}>{awayScore}</span>
-                </div>
-                {goals.length > 0 && !ended && (
-                  <button
-                    onClick={undoLastGoal}
-                    className="mt-1 text-[9px] md:text-[10px] tracking-label uppercase text-white/45 hover:text-red-400 transition-colors"
-                    title="Anular último golo"
-                  >
-                    ↶ Anular
-                  </button>
-                )}
-              </div>
-
-              {/* Away */}
-              <div className="min-w-0">
-                <div className="font-display text-sm md:text-base lg:text-lg uppercase truncate">{match.opponent}</div>
-                <button
-                  onClick={() => !ended && recordGoal('away')}
-                  disabled={ended}
-                  className="mt-1.5 md:mt-2 inline-flex items-center gap-1 bg-red-500/15 border border-red-500/40 text-red-300 font-display text-[11px] md:text-xs uppercase tracking-wider px-2 md:px-3 py-1 md:py-1.5 rounded-sm hover:bg-red-500/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Plus size={11} /> <span className="hidden sm:inline">Golo</span> Adv.
-                </button>
-              </div>
-            </div>
-          </div>
-          </section>
-        </SectionShell>
-
-        {/* Cronómetro - independent */}
-        <SectionShell
-          sectionKey="crono"
-          editing={editingLayout}
-          orderIndex={layout.order.indexOf('crono')}
-          onUp={() => moveSection('crono', -1)}
-          onDown={() => moveSection('crono', +1)}
-          canMoveUp={layout.order.indexOf('crono') > 0}
-          canMoveDown={layout.order.indexOf('crono') < layout.order.length - 1}
-          label="Cronómetro"
-        >
-          <section>
-          {/* Cronómetro */}
-          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
-            <div className="flex items-center justify-between mb-1.5 md:mb-2">
-              <div className="min-w-0">
-                <div className="text-[10px] tracking-label uppercase text-neon mb-0.5">
-                  Cronómetro · {clockMode === 'down' ? 'Decrescente' : 'Crescente'}
-                </div>
-                <div className="text-[11px] text-white/55 uppercase tracking-wide truncate">
-                  {half === 1 ? '1.ª Parte' : '2.ª Parte'} · {Math.round(halfDuration / 60)}:00 min
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span
-                  className={`inline-block w-2 h-2 rounded-full ${
-                    ended ? 'bg-white/30' : running ? 'bg-red-500 live-dot' : 'bg-white/30'
-                  }`}
-                />
-                <span className="text-[9px] md:text-[10px] tracking-label uppercase text-white/60">
-                  {ended ? 'Terminado' : running ? 'AO VIVO' : halfFinished ? 'Fim' : 'Pausa'}
-                </span>
-              </div>
-            </div>
-
-            <div
-              data-testid="live-clock"
-              className={`font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-none tracking-tight tabular-nums ${
-                clockMode === 'down' && isLast30 ? 'text-red-400' : 'text-neon neon-text'
-              }`}
-            >
-              {formatTime(clockDisplay)}
-            </div>
-
-            <div className="flex flex-wrap gap-1.5 md:gap-2 mt-2 md:mt-3">
-              <button
-                onClick={toggleClock}
-                disabled={ended || halfFinished}
-                className={`flex-1 min-w-[100px] font-display text-xs md:text-sm uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
-                  running
-                    ? 'bg-white/10 text-white hover:bg-white/15'
-                    : 'bg-neon text-black hover:bg-[#bbdc0d]'
-                }`}
-              >
-                {running ? <Pause size={13} /> : <Play size={13} />}
-                {running ? 'Pausar' : 'Iniciar'}
-              </button>
-              <button
-                onClick={goNextHalf}
-                disabled={ended}
-                className="flex-1 min-w-[100px] font-display text-xs md:text-sm uppercase tracking-wider px-2 md:px-3 py-1.5 md:py-2 rounded-sm bg-white/5 border border-white/10 text-white hover:border-neon transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronRight size={13} />
-                {half === 1 ? 'Fim 1.ª' : 'Terminar'}
-              </button>
-            </div>
-          </div>
-        </section>
-        </SectionShell>
-
-        {/* Disciplina panel */}
-        <SectionShell
-          sectionKey="disciplina"
-          editing={editingLayout}
-          orderIndex={layout.order.indexOf('disciplina')}
-          onUp={() => moveSection('disciplina', -1)}
-          onDown={() => moveSection('disciplina', +1)}
-          canMoveUp={layout.order.indexOf('disciplina') > 0}
-          canMoveDown={layout.order.indexOf('disciplina') < layout.order.length - 1}
-          label="Disciplina"
-        >
-        <section className="border border-white/10 bg-[#0f0f0f] rounded-sm p-2.5 md:p-4">
-          <div className="flex items-center justify-between mb-2 md:mb-3">
-            <div className="text-[10px] tracking-label uppercase text-neon">Disciplina · Faltas & Cartões</div>
-            {(fouls.length > 0 || cards.length > 0) && !ended && (
-              <div className="flex gap-3 text-[10px] tracking-label uppercase">
-                {fouls.length > 0 && (
-                  <button onClick={undoLastFoul} className="text-white/45 hover:text-orange-400 transition-colors">
-                    ↶ Anular Falta
-                  </button>
-                )}
-                {cards.length > 0 && (
-                  <button onClick={undoLastCard} className="text-white/45 hover:text-red-400 transition-colors">
-                    ↶ Anular Cartão
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-            <DisciplineTile
-              label="Faltas Marcadas"
-              hint={`Esta parte · Total: ${foulsCommitted}`}
-              value={foulsCommittedThisHalf}
-              suffix="/5"
-              warn={foulsCommittedThisHalf >= 5}
-              color="orange"
-              onAdd={openFoulCommitterPicker}
-              disabled={ended || onCourtPlayers.length === 0}
-            />
-            <DisciplineTile
-              label="Faltas Sofridas"
-              hint={`Esta parte · Total: ${foulsSuffered}`}
-              value={foulsSufferedThisHalf}
-              color="blue"
-              onAdd={() => !ended && recordFoul('suffered')}
-              disabled={ended}
-            />
-            <DisciplineTile
-              label="Cartões Amarelos"
-              hint="Advertências (jogo)"
-              value={yellowCards}
-              color="yellow"
-              onAdd={() => openCardPicker('yellow')}
-              disabled={ended || onCourtPlayers.length === 0}
-            />
-            <DisciplineTile
-              label="Cartões Vermelhos"
-              hint="Expulsões (jogo)"
-              value={redCards}
-              color="red"
-              onAdd={() => openCardPicker('red')}
-              disabled={ended || onCourtPlayers.length === 0}
-            />
-          </div>
-        </section>
-        </SectionShell>
 
         {/* Substitution helper bar - shown above sections when either player is selected */}
         {(selectedOut || selectedIn) && !ended && (
-          <div style={{ order: -99 }} className="border border-neon/40 bg-[#161b05] rounded-sm p-2 md:p-3 flex items-center justify-between gap-2 md:gap-3 fade-up">
+          <div className="border border-neon/40 bg-[#161b05] rounded-sm p-2 md:p-3 flex items-center justify-between gap-2 md:gap-3 fade-up">
             <div className="text-xs md:text-sm text-white/80 flex items-center gap-1.5 md:gap-2 flex-wrap">
               <ArrowLeftRight size={14} className="text-neon shrink-0" />
               <span className="font-display uppercase text-sm md:text-base">Substituição</span>
@@ -1364,76 +1412,16 @@ function LiveMatch({ team, match, onEnd }) {
           </div>
         )}
 
-        {/* Em Campo (players on court) - independent */}
-        <SectionShell
-          sectionKey="court"
-          editing={editingLayout}
-          orderIndex={layout.order.indexOf('court')}
-          onUp={() => moveSection('court', -1)}
-          onDown={() => moveSection('court', +1)}
-          canMoveUp={layout.order.indexOf('court') > 0}
-          canMoveDown={layout.order.indexOf('court') < layout.order.length - 1}
-          label="Em Campo"
-        >
-          <section>
-            <SectionHeader title="Em Campo" count={onCourtPlayers.length + emptySlots.length} accent />
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-2.5">
-              {onCourtPlayers.map((p) => (
-                <PlayerCard
-                  key={p.id}
-                  player={p}
-                  selected={selectedOut === p.id}
-                  onClick={() => handleCourtClick(p.id)}
-                  onCourt
-                  disabled={ended}
-                />
-              ))}
-              {emptySlots.map((s) => (
-                <EmptySlotCard
-                  key={s.id}
-                  slot={s}
-                  onClick={() => openFillSlotPicker(s)}
-                  disabled={ended}
-                />
-              ))}
+        <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={layout.order} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-2 md:gap-3">
+              {layout.order.map((k) => sectionMap[k]).filter(Boolean)}
             </div>
-          </section>
-        </SectionShell>
-
-        {/* Suplentes (bench players) - independent */}
-        <SectionShell
-          sectionKey="bench"
-          editing={editingLayout}
-          orderIndex={layout.order.indexOf('bench')}
-          onUp={() => moveSection('bench', -1)}
-          onDown={() => moveSection('bench', +1)}
-          canMoveUp={layout.order.indexOf('bench') > 0}
-          canMoveDown={layout.order.indexOf('bench') < layout.order.length - 1}
-          label="Suplentes"
-        >
-          <section>
-            <SectionHeader title="Suplentes" count={benchPlayers.length} />
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-2.5">
-              {benchPlayers.map((p) => (
-                <PlayerCard
-                  key={p.id}
-                  player={p}
-                  selected={selectedIn === p.id}
-                  onClick={() => handleBenchClick(p.id)}
-                  disabled={ended}
-                />
-              ))}
-              {benchPlayers.length === 0 && (
-                <div className="col-span-full text-xs text-white/40 italic p-4 border border-dashed border-white/10 rounded-sm">
-                  Sem atletas no banco.
-                </div>
-              )}
-            </div>
-          </section>
-        </SectionShell>
+          </SortableContext>
+        </DndContext>
 
         {/* Goals log */}
-        <section style={{ order: 100 }} className="mt-8">
+        <section className="mt-8">
           <SectionHeader title="Marcador · Golos" count={goals.length} icon={Trophy} />
           {goals.length === 0 ? (
             <div className="border border-dashed border-white/10 rounded-sm p-8 text-center text-sm text-white/40">
@@ -1747,44 +1735,37 @@ function LiveMatch({ team, match, onEnd }) {
 
 /* ----------- Shared Subcomponents ----------- */
 
-function SectionShell({ children, editing, orderIndex, onUp, onDown, onFlip, canMoveUp, canMoveDown, label }) {
+function SectionShell({ children, sectionKey, editing, label }) {
+  const {
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: sectionKey, disabled: !editing });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
   return (
-    <div style={{ order: orderIndex }} className={editing ? 'relative border border-neon/30 rounded-sm p-1' : ''}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={editing ? 'relative border border-neon/30 rounded-sm p-1 bg-black/50' : ''}
+      data-testid={`section-${sectionKey}`}
+    >
       {editing && (
         <div className="mb-1 flex items-center justify-between gap-2 bg-neon/10 border border-neon/30 rounded-sm px-2 py-1">
-          <div className="text-[10px] tracking-label uppercase text-neon truncate">{label}</div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
-              data-testid={`layout-up-${label}`}
-              onClick={onUp}
-              disabled={!canMoveUp}
-              className="w-6 h-6 flex items-center justify-center rounded-sm border border-white/10 text-white/70 hover:text-neon hover:border-neon disabled:opacity-30"
-              title="Mover para cima"
+              data-testid={`layout-drag-${sectionKey}`}
+              className="w-7 h-7 flex items-center justify-center rounded-sm border border-white/10 text-white/70 hover:text-neon hover:border-neon cursor-grab active:cursor-grabbing touch-none"
+              title="Arrasta para reordenar"
+              aria-label={`Arrastar ${label}`}
+              {...attributes}
+              {...listeners}
             >
-              <ChevronUp size={12} />
+              <GripVertical size={13} />
             </button>
-            <button
-              type="button"
-              data-testid={`layout-down-${label}`}
-              onClick={onDown}
-              disabled={!canMoveDown}
-              className="w-6 h-6 flex items-center justify-center rounded-sm border border-white/10 text-white/70 hover:text-neon hover:border-neon disabled:opacity-30"
-              title="Mover para baixo"
-            >
-              <ChevronDown size={12} />
-            </button>
-            {onFlip && (
-              <button
-                type="button"
-                data-testid={`layout-flip-${label}`}
-                onClick={onFlip}
-                className="w-6 h-6 flex items-center justify-center rounded-sm border border-white/10 text-white/70 hover:text-neon hover:border-neon"
-                title="Inverter ordem esquerda ↔ direita"
-              >
-                <ArrowLeftRight size={11} />
-              </button>
-            )}
+            <div className="text-[10px] tracking-label uppercase text-neon truncate">{label}</div>
           </div>
         </div>
       )}
