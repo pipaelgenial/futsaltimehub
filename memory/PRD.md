@@ -17,6 +17,7 @@ Aplicação para monitorizar tempos de jogadores numa partida de futsal (tempos 
 - 2026-06-25 → Painel admin de aprovação de utilizadores
 - 2026-06-26 → Recuperação de password (Resend) + correção do sender para `onboarding@resend.dev`
 - 2026-06-26 → **Exportação de estatísticas CSV + PDF** (por jogo e da época) na página `/estatisticas`
+- 2026-02-15 → **Monitor: 5 painéis totalmente independentes e reordenáveis** — Placar, Cronómetro, Disciplina, Em Campo e Suplentes cada um com as próprias setas para mover (migração automática do layout legado)
 
 ## Key Endpoints
 - `POST /api/auth/login`, `register`, `forgot-password`, `reset-password`

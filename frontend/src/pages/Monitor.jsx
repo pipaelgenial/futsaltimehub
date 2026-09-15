@@ -439,11 +439,29 @@ function LiveMatch({ team, match, onEnd }) {
   const tickRef = useRef(null);
 
   // ---- Layout personalization (per user, persisted in localStorage) ----
-  const DEFAULT_LAYOUT = { order: ['scoreCrono', 'disciplina', 'players'], scoreCronoFlip: false, playersFlip: false };
+  // Sections are now fully independent and individually reorderable.
+  const DEFAULT_LAYOUT = { order: ['score', 'crono', 'disciplina', 'court', 'bench'] };
+  const migrateLayout = (raw) => {
+    // Backwards compatibility: expand legacy grouped sections into independent ones
+    if (!raw || !Array.isArray(raw.order)) return DEFAULT_LAYOUT;
+    const expanded = [];
+    raw.order.forEach((k) => {
+      if (k === 'scoreCrono') {
+        expanded.push(...(raw.scoreCronoFlip ? ['crono', 'score'] : ['score', 'crono']));
+      } else if (k === 'players') {
+        expanded.push(...(raw.playersFlip ? ['bench', 'court'] : ['court', 'bench']));
+      } else if (['score', 'crono', 'disciplina', 'court', 'bench'].includes(k)) {
+        expanded.push(k);
+      }
+    });
+    // Ensure all sections are present (append any missing at the end in default order)
+    DEFAULT_LAYOUT.order.forEach((k) => { if (!expanded.includes(k)) expanded.push(k); });
+    return { order: expanded };
+  };
   const [layout, setLayout] = useState(() => {
     try {
       const raw = localStorage.getItem('flh_monitor_layout');
-      if (raw) return { ...DEFAULT_LAYOUT, ...JSON.parse(raw) };
+      if (raw) return migrateLayout(JSON.parse(raw));
     } catch { /* ignore */ }
     return DEFAULT_LAYOUT;
   });
@@ -461,7 +479,6 @@ function LiveMatch({ team, match, onEnd }) {
       return { ...prev, order };
     });
   };
-  const flip = (which) => setLayout((prev) => ({ ...prev, [which]: !prev[which] }));
 
   const homeScore = goals.filter((g) => g.type === 'home').length;
   const awayScore = goals.filter((g) => g.type === 'away').length;
@@ -1103,25 +1120,24 @@ function LiveMatch({ team, match, onEnd }) {
 
       <main className="flex-1 px-3 md:px-5 lg:px-8 py-3 md:py-5 max-w-[1500px] mx-auto w-full flex flex-col gap-2 md:gap-3">
         {editingLayout && (
-          <div className="border border-neon/40 bg-neon/5 text-neon/90 rounded-sm p-2 md:p-3 text-[11px] tracking-label uppercase text-center">
+          <div style={{ order: -100 }} className="border border-neon/40 bg-neon/5 text-neon/90 rounded-sm p-2 md:p-3 text-[11px] tracking-label uppercase text-center">
             Modo personalização · usa as setas para reordenar os painéis
           </div>
         )}
-        {/* Scoreboard + Cronómetro (side-by-side) */}
+        {/* Placar (Scoreboard) - independent */}
         <SectionShell
-          sectionKey="scoreCrono"
+          sectionKey="score"
           editing={editingLayout}
-          orderIndex={layout.order.indexOf('scoreCrono')}
-          onUp={() => moveSection('scoreCrono', -1)}
-          onDown={() => moveSection('scoreCrono', +1)}
-          onFlip={() => flip('scoreCronoFlip')}
-          canMoveUp={layout.order.indexOf('scoreCrono') > 0}
-          canMoveDown={layout.order.indexOf('scoreCrono') < layout.order.length - 1}
-          label="Placar & Cronómetro"
+          orderIndex={layout.order.indexOf('score')}
+          onUp={() => moveSection('score', -1)}
+          onDown={() => moveSection('score', +1)}
+          canMoveUp={layout.order.indexOf('score') > 0}
+          canMoveDown={layout.order.indexOf('score') < layout.order.length - 1}
+          label="Placar"
         >
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
+          <section>
             {/* Scoreboard */}
-            <div style={{ order: layout.scoreCronoFlip ? 1 : 0 }} className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+            <div className="border border-white/10 bg-gradient-to-r from-[#0f0f0f] via-[#141408] to-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:gap-3">
               {/* Home */}
               <div className="text-right min-w-0">
@@ -1167,9 +1183,23 @@ function LiveMatch({ team, match, onEnd }) {
               </div>
             </div>
           </div>
+          </section>
+        </SectionShell>
 
+        {/* Cronómetro - independent */}
+        <SectionShell
+          sectionKey="crono"
+          editing={editingLayout}
+          orderIndex={layout.order.indexOf('crono')}
+          onUp={() => moveSection('crono', -1)}
+          onDown={() => moveSection('crono', +1)}
+          canMoveUp={layout.order.indexOf('crono') > 0}
+          canMoveDown={layout.order.indexOf('crono') < layout.order.length - 1}
+          label="Cronómetro"
+        >
+          <section>
           {/* Cronómetro */}
-          <div style={{ order: layout.scoreCronoFlip ? 0 : 1 }} className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
+          <div className="border border-white/10 bg-[#0f0f0f] rounded-sm p-3 md:p-4 lg:p-5">
             <div className="flex items-center justify-between mb-1.5 md:mb-2">
               <div className="min-w-0">
                 <div className="text-[10px] tracking-label uppercase text-neon mb-0.5">
@@ -1294,21 +1324,9 @@ function LiveMatch({ team, match, onEnd }) {
         </section>
         </SectionShell>
 
-        {/* Players (Em Campo + Banco) with optional substitution helper */}
-        <SectionShell
-          sectionKey="players"
-          editing={editingLayout}
-          orderIndex={layout.order.indexOf('players')}
-          onUp={() => moveSection('players', -1)}
-          onDown={() => moveSection('players', +1)}
-          onFlip={() => flip('playersFlip')}
-          canMoveUp={layout.order.indexOf('players') > 0}
-          canMoveDown={layout.order.indexOf('players') < layout.order.length - 1}
-          label="Em Campo & Banco"
-        >
-        {/* Substitution helper bar */}
+        {/* Substitution helper bar - shown above sections when either player is selected */}
         {(selectedOut || selectedIn) && !ended && (
-          <div className="mb-2 md:mb-3 border border-neon/40 bg-[#161b05] rounded-sm p-2 md:p-3 flex items-center justify-between gap-2 md:gap-3 fade-up">
+          <div style={{ order: -99 }} className="border border-neon/40 bg-[#161b05] rounded-sm p-2 md:p-3 flex items-center justify-between gap-2 md:gap-3 fade-up">
             <div className="text-xs md:text-sm text-white/80 flex items-center gap-1.5 md:gap-2 flex-wrap">
               <ArrowLeftRight size={14} className="text-neon shrink-0" />
               <span className="font-display uppercase text-sm md:text-base">Substituição</span>
@@ -1346,11 +1364,20 @@ function LiveMatch({ team, match, onEnd }) {
           </div>
         )}
 
-        {/* Players grids */}
-        <section className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-2 md:gap-3">
-          <div style={{ order: layout.playersFlip ? 1 : 0 }}>
+        {/* Em Campo (players on court) - independent */}
+        <SectionShell
+          sectionKey="court"
+          editing={editingLayout}
+          orderIndex={layout.order.indexOf('court')}
+          onUp={() => moveSection('court', -1)}
+          onDown={() => moveSection('court', +1)}
+          canMoveUp={layout.order.indexOf('court') > 0}
+          canMoveDown={layout.order.indexOf('court') < layout.order.length - 1}
+          label="Em Campo"
+        >
+          <section>
             <SectionHeader title="Em Campo" count={onCourtPlayers.length + emptySlots.length} accent />
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-2.5">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-2.5">
               {onCourtPlayers.map((p) => (
                 <PlayerCard
                   key={p.id}
@@ -1370,11 +1397,23 @@ function LiveMatch({ team, match, onEnd }) {
                 />
               ))}
             </div>
-          </div>
+          </section>
+        </SectionShell>
 
-          <div style={{ order: layout.playersFlip ? 0 : 1 }}>
-            <SectionHeader title="Banco" count={benchPlayers.length} />
-            <div className="grid grid-cols-2 gap-2 md:gap-2.5">
+        {/* Suplentes (bench players) - independent */}
+        <SectionShell
+          sectionKey="bench"
+          editing={editingLayout}
+          orderIndex={layout.order.indexOf('bench')}
+          onUp={() => moveSection('bench', -1)}
+          onDown={() => moveSection('bench', +1)}
+          canMoveUp={layout.order.indexOf('bench') > 0}
+          canMoveDown={layout.order.indexOf('bench') < layout.order.length - 1}
+          label="Suplentes"
+        >
+          <section>
+            <SectionHeader title="Suplentes" count={benchPlayers.length} />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-2.5">
               {benchPlayers.map((p) => (
                 <PlayerCard
                   key={p.id}
@@ -1385,17 +1424,16 @@ function LiveMatch({ team, match, onEnd }) {
                 />
               ))}
               {benchPlayers.length === 0 && (
-                <div className="text-xs text-white/40 italic p-4 border border-dashed border-white/10 rounded-sm">
+                <div className="col-span-full text-xs text-white/40 italic p-4 border border-dashed border-white/10 rounded-sm">
                   Sem atletas no banco.
                 </div>
               )}
             </div>
-          </div>
-        </section>
+          </section>
         </SectionShell>
 
         {/* Goals log */}
-        <section className="mt-8">
+        <section style={{ order: 100 }} className="mt-8">
           <SectionHeader title="Marcador · Golos" count={goals.length} icon={Trophy} />
           {goals.length === 0 ? (
             <div className="border border-dashed border-white/10 rounded-sm p-8 text-center text-sm text-white/40">
@@ -1457,7 +1495,7 @@ function LiveMatch({ team, match, onEnd }) {
 
         {/* Fouls log */}
         {fouls.length > 0 && (
-          <section className="mt-8">
+          <section style={{ order: 101 }} className="mt-8">
             <SectionHeader title="Histórico de Faltas" count={fouls.length} icon={AlertTriangle} />
             <div className="border border-white/10 rounded-sm overflow-hidden">
               <table className="w-full text-sm">
@@ -1507,7 +1545,7 @@ function LiveMatch({ team, match, onEnd }) {
 
         {/* Cards log */}
         {cards.length > 0 && (
-          <section className="mt-8">
+          <section style={{ order: 102 }} className="mt-8">
             <SectionHeader title="Histórico de Cartões" count={cards.length} icon={Square} />
             <div className="border border-white/10 rounded-sm overflow-hidden">
               <table className="w-full text-sm">
@@ -1553,7 +1591,7 @@ function LiveMatch({ team, match, onEnd }) {
         )}
 
         {/* Subs log */}
-        <section className="mt-8">
+        <section style={{ order: 103 }} className="mt-8">
           <SectionHeader title="Histórico de Substituições" count={subs.length} icon={History} />
           {subs.length === 0 ? (
             <div className="border border-dashed border-white/10 rounded-sm p-8 text-center text-sm text-white/40">
