@@ -602,6 +602,7 @@ function LiveMatch({ team, match, onEnd }) {
   const goNextHalf = () => {
     if (half === 1) {
       if (!window.confirm('Terminar a 1.ª parte e preparar a 2.ª?')) return;
+      const endedAtMin = elapsedHalf; // Actual played minute when half ends (excludes paused time)
       setHalf(2);
       setElapsedHalf(0);
       setRunning(false);
@@ -610,7 +611,7 @@ function LiveMatch({ team, match, onEnd }) {
         prev.map((p) => {
           const stints = (p.stints || []).map((s, i, arr) =>
             i === arr.length - 1 && s.outHalf === null
-              ? { ...s, outHalf: 1, outMinute: halfDuration, duration: p.currentStint }
+              ? { ...s, outHalf: 1, outMinute: endedAtMin, duration: p.currentStint }
               : s
           );
           if (p.onCourt) {
