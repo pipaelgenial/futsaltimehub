@@ -447,6 +447,12 @@ function LiveMatch({ team, match, onEnd }) {
   const [selectedOut, setSelectedOut] = useState(null);
   const [selectedIn, setSelectedIn] = useState(null);
   const tickRef = useRef(null);
+  // Ref mirror of elapsedHalf so the tick can advance in-sync with player counters
+  // (without relying on stale state closures or double-invocations from Strict Mode).
+  const elapsedHalfRef = useRef(match.elapsedHalf || 0);
+  useEffect(() => { elapsedHalfRef.current = match.elapsedHalf || 0; // resync on mount / match load
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---- Layout personalization (per user, persisted in localStorage) ----
   // Sections are fully independent, reorderable via drag-and-drop and resizable (1 or 2 columns).
@@ -550,19 +556,16 @@ function LiveMatch({ team, match, onEnd }) {
   useEffect(() => {
     if (!running || ended) return;
     tickRef.current = setInterval(() => {
-      setElapsedHalf((t) => {
-        if (t + 1 >= halfDuration) {
-          // half ended automatically
-          clearInterval(tickRef.current);
-          setRunning(false);
-          toast.message(`FIM DA ${half}.ª PARTE`, {
-            description: half === 1 ? 'Pronto para iniciar a 2.ª parte.' : 'Jogo terminado. Pode gravar.',
-          });
-          if (half === 2) setEnded(true);
-          return halfDuration;
-        }
-        return t + 1;
-      });
+      // Guard: if half is already at max, stop everything (no more time to add).
+      if (elapsedHalfRef.current >= halfDuration) {
+        clearInterval(tickRef.current);
+        setRunning(false);
+        return;
+      }
+      const next = elapsedHalfRef.current + 1;
+      elapsedHalfRef.current = next;
+      setElapsedHalf(next);
+      // Increment player times in-sync with the clock advancing.
       setPlayers((prev) =>
         prev.map((p) =>
           p.onCourt
@@ -574,9 +577,18 @@ function LiveMatch({ team, match, onEnd }) {
       setEmptySlots((prev) =>
         prev.map((s) => (s.secondsRemaining > 0 ? { ...s, secondsRemaining: s.secondsRemaining - 1 } : s))
       );
+      if (next >= halfDuration) {
+        // Half just ended: freeze everything and notify.
+        clearInterval(tickRef.current);
+        setRunning(false);
+        toast.message(`FIM DA ${half}.ª PARTE`, {
+          description: half === 1 ? 'Pronto para iniciar a 2.ª parte.' : 'Jogo terminado. Pode gravar.',
+        });
+        if (half === 2) setEnded(true);
+      }
     }, 1000);
     return () => clearInterval(tickRef.current);
-  }, [running, ended, half]);
+  }, [running, ended, half, halfDuration]);
 
   const onCourtPlayers = useMemo(() => players.filter((p) => p.onCourt), [players]);
   const benchPlayers = useMemo(() => players.filter((p) => !p.onCourt), [players]);
@@ -605,6 +617,7 @@ function LiveMatch({ team, match, onEnd }) {
       const endedAtMin = elapsedHalf; // Actual played minute when half ends (excludes paused time)
       setHalf(2);
       setElapsedHalf(0);
+      elapsedHalfRef.current = 0;
       setRunning(false);
       // Close all open stints at end of half 1, reopen new stints at half 2 minute 0 for those still on court
       setPlayers((prev) =>

@@ -22,6 +22,8 @@ Aplicação para monitorizar tempos de jogadores numa partida de futsal (tempos 
 - 2026-02-15 → **Monitor: grelha de 2 colunas com painéis redimensionáveis** — 6 blocos (Placar, Cronómetro, Faltas, Cartões, Em Campo, Suplentes), cada um alterna entre meia coluna e largura total via botão dedicado
 - 2026-02-15 → **Monitor: modo Compacto** — botão dedicado no cabeçalho que junta Placar + Cronómetro numa única linha (força meia coluna e reduz padding/tamanhos), libertando espaço vertical para os jogadores
 - 2026-02-15 → **Fix parciais com cronómetro em pausa** — Fim 1.ª parte / Fim de jogo passam a fechar os parciais no minuto real jogado (`elapsedHalf`) em vez do total da parte, evitando que o tempo em pausa inflacione as parciais dos jogadores. Migração `/app/backend/scripts/migrate_stint_outMinute.py` corrige jogos existentes
+- 2026-02-15 → **Fix: jogadores convocados sem tempo contam para "Jogos"** — a agregação da página Estatísticas passa a somar `+1 jogo` sempre que o atleta foi convocado, mesmo com 00:00 jogados
+- 2026-02-15 → **Fix: parar tempos dos jogadores ao chegar a 00:00** — refactor do tick com `elapsedHalfRef` para garantir que Total/Parcial dos jogadores em campo param no exato instante em que o cronómetro descrescente chega a zero
 
 ## Key Endpoints
 - `POST /api/auth/login`, `register`, `forgot-password`, `reset-password`

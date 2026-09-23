@@ -94,7 +94,9 @@ export default function Estatisticas() {
         stats[p.id].foulsCommitted += p.foulsCommitted || 0;
         stats[p.id].yellowCards += p.yellowCards || 0;
         stats[p.id].redCards += p.redCards || 0;
-        if ((p.totalTime || 0) > 0) stats[p.id].games += 1;
+        // Count as a game whenever the player was called up for the match,
+        // even if they did not play a single second.
+        stats[p.id].games += 1;
       });
     });
     return Object.values(stats)
