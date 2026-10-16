@@ -1,20 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square, Loader2, Download, FileText, FileSpreadsheet, Pencil } from 'lucide-react';
+import { ArrowLeft, BarChart3, Trash2, ChevronDown, ChevronUp, Trophy, Calendar, Users, ArrowRight, AlertTriangle, Square, Loader2, Download, Pencil } from 'lucide-react';
 import Logo from '../components/Logo';
 import Footer from '../components/Footer';
 import { apiGetTeam, apiListMatches, apiDeleteMatch, getSessionUser } from '../lib/api';
 import { formatTime, formatTimeLong, formatCountdown, getMatchDuration } from '../lib/time';
 import { toast } from 'sonner';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
 import { exportMatchCSV, exportMatchPDF, exportSeasonCSV, exportSeasonPDF } from '../lib/exporters';
+import ExportOptionsDialog from '../components/ExportOptionsDialog';
 
 export default function Estatisticas() {
   const navigate = useNavigate();
@@ -25,6 +18,7 @@ export default function Estatisticas() {
   const [expanded, setExpanded] = useState(null);
   const [competitionFilter, setCompetitionFilter] = useState('all'); // 'all' | competition name | '__none__'
   const [matchFilter, setMatchFilter] = useState('all'); // 'all' | match id
+  const [exportCtx, setExportCtx] = useState(null);
 
   useEffect(() => {
     if (!sessionUser) {
@@ -125,6 +119,23 @@ export default function Estatisticas() {
     toast.success('JOGO ELIMINADO');
   };
 
+  const competitionLabel = competitionFilter === 'all' ? null : (competitionFilter === '__none__' ? 'Sem competição' : competitionFilter);
+
+  const handleExport = (format, opts) => {
+    if (!opts.sections.length) {
+      toast.error('SELECIONA PELO MENOS UMA SECÇÃO');
+      return;
+    }
+    if (exportCtx.scope === 'match') {
+      (format === 'csv' ? exportMatchCSV : exportMatchPDF)(team, exportCtx.match, opts);
+      toast.success(`${format.toUpperCase()} DO JOGO GERADO`);
+    } else {
+      (format === 'csv' ? exportSeasonCSV : exportSeasonPDF)(team, aggregate, filteredMatches, competitionLabel, opts);
+      toast.success(`${format.toUpperCase()} GERADO`);
+    }
+  };
+
+
   return (
     <div className="min-h-screen flex flex-col bg-black text-white">
       <header className="border-b border-white/10 px-5 lg:px-8 py-4 flex items-center justify-between sticky top-0 bg-black/95 backdrop-blur z-20">
@@ -200,43 +211,13 @@ export default function Estatisticas() {
               </div>
             )}
             {filteredMatches.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    data-testid="export-season-trigger"
-                    className="inline-flex items-center gap-2 bg-neon text-black font-display text-xs uppercase tracking-wider px-4 py-2.5 rounded-sm hover:bg-[#bbdc0d] transition-colors"
-                  >
-                    <Download size={14} /> {competitionFilter === 'all' ? 'Exportar Época' : 'Exportar Filtro'}
-                    <ChevronDown size={14} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-[#0f0f0f] border-white/10 text-white">
-                  <DropdownMenuLabel className="text-[10px] tracking-label uppercase text-white/50">
-                    {competitionFilter === 'all' ? 'Época completa' : `Competição: ${competitionFilter === '__none__' ? 'Sem competição' : competitionFilter}`}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-white/10" />
-                  <DropdownMenuItem
-                    data-testid="export-season-csv"
-                    className="cursor-pointer focus:bg-neon/15 focus:text-neon"
-                    onClick={() => {
-                      exportSeasonCSV(team, aggregate, filteredMatches, competitionFilter === 'all' ? null : (competitionFilter === '__none__' ? 'Sem competição' : competitionFilter));
-                      toast.success('CSV GERADO');
-                    }}
-                  >
-                    <FileSpreadsheet size={14} className="mr-2" /> CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    data-testid="export-season-pdf"
-                    className="cursor-pointer focus:bg-neon/15 focus:text-neon"
-                    onClick={() => {
-                      exportSeasonPDF(team, aggregate, filteredMatches, competitionFilter === 'all' ? null : (competitionFilter === '__none__' ? 'Sem competição' : competitionFilter));
-                      toast.success('PDF GERADO');
-                    }}
-                  >
-                    <FileText size={14} className="mr-2" /> PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <button
+                data-testid="export-season-trigger"
+                onClick={() => setExportCtx({ scope: 'season' })}
+                className="inline-flex items-center gap-2 bg-neon text-black font-display text-xs uppercase tracking-wider px-4 py-2.5 rounded-sm hover:bg-[#bbdc0d] transition-colors"
+              >
+                <Download size={14} /> {competitionFilter === 'all' ? 'Exportar Época' : 'Exportar Filtro'}
+              </button>
             )}
           </div>
         </div>
@@ -401,48 +382,14 @@ export default function Estatisticas() {
                             <div className="text-[10px] tracking-label uppercase text-white/50">Duração</div>
                             <div className="font-mono text-neon">{formatTimeLong(getMatchDuration(m))}</div>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                data-testid={`export-match-trigger-${m.id}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-white/40 hover:text-neon p-2"
-                                title="Exportar este jogo"
-                              >
-                                <Download size={14} />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="end"
-                              className="bg-[#0f0f0f] border-white/10 text-white"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <DropdownMenuLabel className="text-[10px] tracking-label uppercase text-white/50">Exportar Jogo</DropdownMenuLabel>
-                              <DropdownMenuSeparator className="bg-white/10" />
-                              <DropdownMenuItem
-                                data-testid={`export-match-csv-${m.id}`}
-                                className="cursor-pointer focus:bg-neon/15 focus:text-neon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  exportMatchCSV(team, m);
-                                  toast.success('CSV DO JOGO GERADO');
-                                }}
-                              >
-                                <FileSpreadsheet size={14} className="mr-2" /> CSV
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                data-testid={`export-match-pdf-${m.id}`}
-                                className="cursor-pointer focus:bg-neon/15 focus:text-neon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  exportMatchPDF(team, m);
-                                  toast.success('PDF DO JOGO GERADO');
-                                }}
-                              >
-                                <FileText size={14} className="mr-2" /> PDF
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <button
+                            data-testid={`export-match-trigger-${m.id}`}
+                            onClick={(e) => { e.stopPropagation(); setExportCtx({ scope: 'match', match: m }); }}
+                            className="text-white/40 hover:text-neon p-2"
+                            title="Exportar este jogo"
+                          >
+                            <Download size={14} />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -707,6 +654,13 @@ export default function Estatisticas() {
           </>
         )}
       </main>
+      <ExportOptionsDialog
+        open={!!exportCtx}
+        onClose={() => setExportCtx(null)}
+        scope={exportCtx?.scope || 'season'}
+        title={exportCtx?.scope === 'match' ? `Jogo vs ${exportCtx.match.opponent || '—'}` : (competitionFilter === 'all' ? 'Época completa' : `Competição: ${competitionLabel}`)}
+        onGenerate={handleExport}
+      />
       <Footer />
     </div>
   );

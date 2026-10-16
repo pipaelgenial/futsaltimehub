@@ -38,3 +38,12 @@ Aplicação para monitorizar tempos de jogadores numa partida de futsal (tempos 
 
 ## Test Credentials
 Ver `/app/memory/test_credentials.md`
+
+## 2026-06 — Exportação com campos selecionáveis (DONE)
+- Botões "Exportar Época/Filtro" e exportar por jogo abrem `ExportOptionsDialog` (secções + colunas por atleta, Selecionar tudo / Limpar, Gerar CSV / PDF).
+- Seleção persistida em localStorage (`flh_export_prefs_v1`), separada para jogo e época.
+- Testado via screenshot: CSV respeita colunas/secções desmarcadas; PDF do jogo gerado.
+
+## Backlog
+- P1: Refatorar Monitor.jsx (~2000 linhas) em subcomponentes.
+- P2: Link público partilhável do resumo do jogo.
